@@ -1,0 +1,114 @@
+import shutil
+
+include: "scripts/constants.py"
+include: "scripts/utils.py"
+
+#########################################################
+#              Get simulated dataset names              #
+#########################################################
+
+SIMUDATASETNAMES = get_dataset_names(SIMUSNVSITESDIR)
+
+
+########################################################
+#                CELLPHY - From Monovar                #
+########################################################
+
+# Rule: run CELLPHY with filtered SNVs called by Monovar working with TRUE parameters (VCF input in EP mode)
+rule runCellphyWithMonovarSNVsTrueParamsVCFEP:
+    input: 
+        MONOVARTRUEPARAMSDIR + "{datasetName}/filtered.vcf"
+    output: 
+        tree=protected(CELLPHYTRUEMONOVARSNVSDIR + "{datasetName}/vcf_ep/{datasetName}.raxml.bestTree"),
+        model=protected(CELLPHYTRUEMONOVARSNVSDIR + "{datasetName}/vcf_ep/{datasetName}.raxml.bestModel")
+    params:
+        cellphy=config["tools"]["cellphy"],
+        seed=config["fineTune"]["cellphy"]["seed"],
+        parsTrees=config["fineTune"]["cellphy"]["parsTrees"],
+        prefix=CELLPHYTRUEMONOVARSNVSDIR + "{datasetName}/vcf_ep/{datasetName}"
+    threads:
+        config["fineTune"]["cellphy"]["threads"]
+    conda:
+        "scripts/envs/bcftools.yaml"
+    shell: 
+        "{params.cellphy} RAXML "
+        "--search "
+        "--msa {input} "
+        "--model GT10+FO+E+G "
+        "--tree pars{{{params.parsTrees}}} "
+        "--seed {params.seed} "
+        "--thread {threads} "
+        "--prefix {params.prefix} "
+        "--prob-msa off "
+        "--force model_lh_impr "
+        "&>{params.prefix}.out"
+
+# Rule: replace the cell names on the best tree of CELLPHY with input data from Monovar for the sake of tree conparison
+rule replaceCellphyCellNamesWithMonovarSNVsTrueParams:
+    input:
+        refCellNames=SIMUTUMORCELLNAMES,
+        tree=CELLPHYTRUEMONOVARSNVSDIR + "{datasetName}/vcf_ep/{datasetName}.raxml.bestTree"
+    output:
+        CELLPHYTRUEMONOVARSNVSDIR + "{datasetName}/vcf_ep/{datasetName}.raxml.bestTree_formatted"
+    shell:
+        "python3 scripts/format_cell_names_on_tree.py "
+        "--tree {input.tree} "
+        "--ref {input.refCellNames} "
+        "--out {output}"
+
+
+#######################################################
+#              Gather trees from CELLPHY              #
+#######################################################
+
+# Rule: gather inferred trees from CELLPHY with filtered SNVs called by Monovar working with TRUE parameters
+rule gatherCellphyTreesWithTrueMonovarSNVsEP:
+    input:
+        inferredTrees = expand(CELLPHYTRUEMONOVARSNVSDIR + "{datasetName}/vcf_ep/{datasetName}.raxml.bestTree_formatted", datasetName=SIMUDATASETNAMES),
+        trueTrees = expand(SIMUCONVERTEDTRUETREEDIR + config["benchmark"]["simulation"]["treesWithoutTrunkWithoutNormalDir"] + config["benchmark"]["simulation"]["treesPre"] + ".{datasetName}", datasetName=SIMUDATASETNAMES)
+    output:
+        ANALYSISTREECOMPDIR + "from_cellphy_" + config["benchmark"]["analysis"]["trueMonovarSNVs"] + "_" + config["benchmark"]["analysis"]["cellphyEPMode"] + ".tsv"
+    params:
+        forSieve=False,
+        datasetNames=SIMUDATASETNAMES,
+        trueTreesDir=SIMUCONVERTEDTRUETREEDIR + config["benchmark"]["simulation"]["treesWithoutTrunkWithoutNormalDir"],
+        trueTreesPre=config["benchmark"]["simulation"]["treesPre"],
+        tool="cellphy",
+        snvType=config["benchmark"]["analysis"]["trueMonovarSNVs"],
+        toolSetup=config["benchmark"]["analysis"]["cellphyEPMode"],
+        cellNum=config["benchmark"]["analysis"]["cellNum"],
+        covMean=config["benchmark"]["analysis"]["covMean"],
+        covVariance=config["benchmark"]["analysis"]["covVariance"],
+        effSeqErrRate=config["benchmark"]["analysis"]["effSeqErrRate"],
+        adoRate=config["benchmark"]["analysis"]["adoRate"],
+        deletionRate=config["benchmark"]["analysis"]["deletionRate"],
+        insertionRate=config["benchmark"]["analysis"]["insertionRate"]
+    conda:
+        "scripts/envs/pandas.yaml"
+    script:
+        "scripts/gather_inferred_trees_part.py"
+
+
+########################################################
+#              Get estimates from CELLPHY              #
+########################################################
+
+# Rule: get parameter estimates from CELLPHY with filtered SNVs called by Monovar working with TRUE parameters
+rule getCellphyParamsWithTrueMonovarSNVsEP:
+    input: 
+        expand(CELLPHYTRUEMONOVARSNVSDIR + "{datasetName}/vcf_ep/{datasetName}.raxml.bestModel", datasetName=SIMUDATASETNAMES)
+    output: 
+        ANALYSISPARAMSDIR + "from_cellphy_" + config["benchmark"]["analysis"]["trueMonovarSNVs"] + ".tsv"
+    params:
+        cellNum=config["benchmark"]["analysis"]["cellNum"],
+        covMean=config["benchmark"]["analysis"]["covMean"],
+        covVariance=config["benchmark"]["analysis"]["covVariance"],
+        datasetNames=SIMUDATASETNAMES,
+        tool="cellphy",
+        snvType=config["benchmark"]["analysis"]["trueMonovarSNVs"],
+        toolSetup=config["benchmark"]["analysis"]["cellphyEPMode"]
+    conda:
+        "scripts/envs/pandas.yaml"
+    script:
+        "scripts/get_param_estimates_cellphy.py"
+

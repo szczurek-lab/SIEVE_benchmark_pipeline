@@ -1,0 +1,191 @@
+import shutil
+
+include: "scripts/constants.py"
+include: "scripts/utils.py"
+
+#########################################################
+#              Get simulated dataset names              #
+#########################################################
+
+SIMUDATASETNAMES = get_dataset_names(SIMUSNVSITESDIR)
+        
+
+########################################################
+#                        SCIPHI                        #
+########################################################
+
+# Rule: run SCIPHI
+rule runSciphi:
+    input: 
+        mpileupFile=SIMUMPILEUPDATADIR + "{datasetName}/" + SIMUMPILEUPWITHOUTNORMAL,
+        bamFileNames=SIMUSCIPHIDIR + config["benchmark"]["simulation"]["bamFileNamesWithoutNormal"]
+    output:
+        vcf=protected(SCIPHIDIR + "{datasetName}/" + config["benchmark"]["simulation"]["sciphiFilePre"] + ".vcf"),
+        model=protected(SCIPHIDIR + "{datasetName}/" + config["benchmark"]["simulation"]["sciphiFilePre"] + ".params.txt"),
+        muProbs=protected(SCIPHIDIR + "{datasetName}/" + config["benchmark"]["simulation"]["sciphiFilePre"] + ".probs"),
+        tree=protected(SCIPHIDIR + "{datasetName}/" + config["benchmark"]["simulation"]["sciphiFilePre"] + "/best_index/tree.gv")
+    params:
+        sciphi=config["tools"]["sciphi"],
+        seed=config["fineTune"]["sciphi"]["seed"],
+        loops=config["fineTune"]["sciphi"]["loops"],
+        prefix1=SCIPHIDIR + "{datasetName}/",
+        prefix2=config["benchmark"]["simulation"]["sciphiFilePre"]
+    shell:
+        "{params.sciphi} "
+        "--cwm 2 "
+        "--lz 1 "
+        "-t s "
+        "-l {params.loops} "
+        "--seed {params.seed} "
+        "--in {input.bamFileNames} "
+        "-o {params.prefix1}{params.prefix2} "
+        "{input.mpileupFile} "
+        "&> {params.prefix1}cancer.out"
+
+# Rule: convert trees from SCIPHI to NEXUS format
+rule convertSciphiTrees:
+    input: 
+        SCIPHIDIR + "{datasetName}/" + config["benchmark"]["simulation"]["sciphiFilePre"] + "/best_index/tree.gv"
+    output: 
+        protected(SCIPHIDIR + "{datasetName}/" + config["benchmark"]["simulation"]["sciphiFilePre"] + "/best_index/tree.nexus")
+    params:
+        leafNames=SIMUSCIPHIDIR + config["benchmark"]["simulation"]["bamFileNamesWithoutNormal"]
+    shell: 
+        "python scripts/convert_gv_2_nexus.py "
+        "--leafNames {params.leafNames} "
+        "--output {output} "
+        "{input}"
+
+# Rule: get variant calling information from SCIPHI
+rule getSciphiVarInfo:
+    input:
+        vcf=SCIPHIDIR + "{datasetName}/" + config["benchmark"]["simulation"]["sciphiFilePre"] + ".vcf",
+        muProbs=SCIPHIDIR + "{datasetName}/" + config["benchmark"]["simulation"]["sciphiFilePre"] + ".probs"
+    output:
+        cellNames=protected(SCIPHIDIR + "{datasetName}/post_processed/" + config["benchmark"]["simulation"]["sciphiFilePre"] + ".cell_names"),
+        lociInfo=protected(SCIPHIDIR + "{datasetName}/post_processed/" + config["benchmark"]["simulation"]["sciphiFilePre"] + ".loci_info"),
+        genotypes=protected(SCIPHIDIR + "{datasetName}/post_processed/" + config["benchmark"]["simulation"]["sciphiFilePre"] + ".genotypes"),
+        ternary=protected(SCIPHIDIR + "{datasetName}/post_processed/" + config["benchmark"]["simulation"]["sciphiFilePre"] + ".ternary"),
+        genotypeProbs=protected(SCIPHIDIR + "{datasetName}/post_processed/" + config["benchmark"]["simulation"]["sciphiFilePre"] + ".genotype_probs"),
+        sifitData=protected(SCIPHIDIR + "{datasetName}/post_processed/" + config["benchmark"]["simulation"]["sciphiFilePre"] + ".sifit_data"),
+        sifitCellNames=protected(SCIPHIDIR + "{datasetName}/post_processed/" + config["benchmark"]["simulation"]["sciphiFilePre"] + ".sifit_cell_names")
+    params:
+        prefix=SCIPHIDIR + "{datasetName}/post_processed/" + config["benchmark"]["simulation"]["sciphiFilePre"]
+    shell:
+        "python scripts/extract_info_from_vcf.py "
+        "--mode sciphi "
+        "--prefix {params.prefix} "
+        "--probs {input.muProbs} "
+        "--sifit t "
+        "{input.vcf}"
+
+# Rule: merge SNV sites with identical chromosome label and position
+rule mergeSciphiSNVs:
+    input:
+        lociInfo=SCIPHIDIR + "{datasetName}/post_processed/" + config["benchmark"]["simulation"]["sciphiFilePre"] + ".loci_info",
+        ternary=SCIPHIDIR + "{datasetName}/post_processed/" + config["benchmark"]["simulation"]["sciphiFilePre"] + ".ternary"
+    output:
+        lociInfo=protected(SCIPHIDIR + "{datasetName}/post_processed/" + config["benchmark"]["simulation"]["sciphiFilePre"] + "_merged.loci_info"),
+        ternary=protected(SCIPHIDIR + "{datasetName}/post_processed/" + config["benchmark"]["simulation"]["sciphiFilePre"] + "_merged.ternary")
+    params:
+        prefix=SCIPHIDIR + "{datasetName}/post_processed/" + config["benchmark"]["simulation"]["sciphiFilePre"] + "_merged"
+    shell:
+        "python scripts/merge_duplicate_lines.py "
+        "--loci {input.lociInfo} "
+        "--ternary {input.ternary} "
+        "--prefix {params.prefix}"
+
+
+########################################################
+#               Gather trees from SCIPHI               #
+########################################################
+
+# Rule: gather inferred trees from SCIPHI
+rule gatherSciphiTrees:
+    input:        
+        inferredTrees = expand(SCIPHIDIR + "{datasetName}/" + config["benchmark"]["simulation"]["sciphiFilePre"] + "/best_index/tree.nexus", datasetName=SIMUDATASETNAMES),
+        trueTrees = expand(SIMUCONVERTEDTRUETREEDIR + config["benchmark"]["simulation"]["treesWithTrunkWithoutNormalDir"] + config["benchmark"]["simulation"]["treesPre"] + ".{datasetName}", datasetName=SIMUDATASETNAMES)
+    output:
+        ANALYSISTREECOMPDIR + "from_sciphi.tsv"
+    params:
+        forSieve=False,
+        datasetNames=SIMUDATASETNAMES,
+        trueTreesDir=SIMUCONVERTEDTRUETREEDIR + config["benchmark"]["simulation"]["treesWithTrunkWithoutNormalDir"],
+        trueTreesPre=config["benchmark"]["simulation"]["treesPre"],
+        tool="sciphi",
+        snvType=config["benchmark"]["analysis"]["candidateSNVs"],
+        toolSetup=config["benchmark"]["analysis"]["notApplicable"],
+        cellNum=config["benchmark"]["analysis"]["cellNum"],
+        covMean=config["benchmark"]["analysis"]["covMean"],
+        covVariance=config["benchmark"]["analysis"]["covVariance"],
+        effSeqErrRate=config["benchmark"]["analysis"]["effSeqErrRate"],
+        adoRate=config["benchmark"]["analysis"]["adoRate"],
+        deletionRate=config["benchmark"]["analysis"]["deletionRate"],
+        insertionRate=config["benchmark"]["analysis"]["insertionRate"]
+    conda:
+        "scripts/envs/pandas.yaml"
+    script:
+        "scripts/gather_inferred_trees_part.py"
+
+
+#######################################################
+#              Get estimates from SCIPHI              #
+#######################################################
+
+# Rule: get parameter estimates from SCIPHI
+rule getSciphiParams:
+    input: 
+        expand(SCIPHIDIR + "{datasetName}/" + config["benchmark"]["simulation"]["sciphiFilePre"] + ".params.txt", datasetName=SIMUDATASETNAMES)
+    output: 
+        ANALYSISPARAMSDIR + "from_sciphi.tsv"
+    params:
+        cellNum=config["benchmark"]["analysis"]["cellNum"],
+        covMean=config["benchmark"]["analysis"]["covMean"],
+        covVariance=config["benchmark"]["analysis"]["covVariance"],
+        datasetNames=SIMUDATASETNAMES,
+        tool="sciphi",
+        snvType=config["benchmark"]["analysis"]["candidateSNVs"],
+        toolSetup=config["benchmark"]["analysis"]["notApplicable"],
+        estimatesType=config["benchmark"]["analysis"]["estimatesTypeSciphi"]
+    conda:
+        "scripts/envs/pandas.yaml"
+    script:
+        "scripts/get_param_estimates_sciphi.py"
+
+
+#######################################################
+#       Get variant calling results from SCIPHI       #
+#######################################################
+
+# Rule: gather variant calling results from SCIPHI
+rule gatherSciphiVarResults:
+    input: 
+        cellNames=expand(SCIPHIDIR + "{datasetName}/post_processed/" + config["benchmark"]["simulation"]["sciphiFilePre"] + ".cell_names", datasetName=SIMUDATASETNAMES),
+        lociInfo=expand(SCIPHIDIR + "{datasetName}/post_processed/" + config["benchmark"]["simulation"]["sciphiFilePre"] + "_merged.loci_info", datasetName=SIMUDATASETNAMES),
+        genotypes=expand(SCIPHIDIR + "{datasetName}/post_processed/" + config["benchmark"]["simulation"]["sciphiFilePre"] + ".genotypes", datasetName=SIMUDATASETNAMES),
+        ternary=expand(SCIPHIDIR + "{datasetName}/post_processed/" + config["benchmark"]["simulation"]["sciphiFilePre"] + "_merged.ternary", datasetName=SIMUDATASETNAMES),
+        genotypeProbs=expand(SCIPHIDIR + "{datasetName}/post_processed/" + config["benchmark"]["simulation"]["sciphiFilePre"] + ".genotype_probs", datasetName=SIMUDATASETNAMES)
+    output: 
+        ANALYSISVARCALLDIR + "from_sciphi.tsv"
+    params:
+        forSieve=False,
+        mergedDuplicateLines=False,
+        datasetNames=SIMUDATASETNAMES,
+        tool="sciphi",
+        toolSetup=config["benchmark"]["analysis"]["notApplicable"],
+        trueCellNames=SIMUTUMORCELLNAMES,
+        trueLociInfoPre=SIMUSNVSITESDIR + config["benchmark"]["simulation"]["trueSNVSitesNamesPre"],
+        trueGenotypesNUPre=SIMUTRUESNVDIR + config["benchmark"]["simulation"]["trueSNVGenotypesNUPre"],
+        trueGenotypesTerPre=SIMUTRUESNVDIR + config["benchmark"]["simulation"]["trueSNVGenotypesTerPre"],
+        cellNum=config["benchmark"]["analysis"]["cellNum"],
+        covMean=config["benchmark"]["analysis"]["covMean"],
+        covVariance=config["benchmark"]["analysis"]["covVariance"],
+        effSeqErrRate=config["benchmark"]["analysis"]["effSeqErrRate"],
+        adoRate=config["benchmark"]["analysis"]["adoRate"],
+        deletionRate=config["benchmark"]["analysis"]["deletionRate"],
+        insertionRate=config["benchmark"]["analysis"]["insertionRate"]
+    conda:
+        "scripts/envs/pandas.yaml"
+    script:
+        "scripts/gather_variant_calling_results_part.py"
+

@@ -1,0 +1,93 @@
+"""
+Run SIFIT with data from MONOVAR with true parameters remotely.
+"""
+
+configfile: "config.yaml"
+include: "scripts/constants.py"
+include: "scripts/utils.py"
+
+
+########################################################
+#        Get the working directory of SNAKEMAKE        #
+########################################################
+
+SNAKEMAKEDIR = get_abs_working_dir()
+
+
+#########################################################
+#                       All rules                       #
+#########################################################
+
+rule all:
+    input:
+        expand(SIFITGITSKELETONTRUEMONOVARREMOTEDIR + config["benchmark"]["paramTypes"]["fromTrueParamsDir"] + "{datasetName}/true_out", 
+                datasetName=config["benchmark"]["simulation"]["datasetNames"]),
+        expand(SIFITGITSKELETONTRUEMONOVARREMOTEDIR + config["benchmark"]["paramTypes"]["fromTrueParamsDir"] + "{datasetName}/data_mlTree.newick", 
+                datasetName=config["benchmark"]["simulation"]["datasetNames"])
+    output:
+        protected(config["benchmark"]["paramTypes"]["fromTrueParamsDir"] + "done")
+    params:
+        dataDir=SIFITGITSKELETONTRUEMONOVARREMOTEDIR,
+        remoteUserName=config["benchmark"]["git"]["remote"]["userName"],
+        remoteUserEmail=config["benchmark"]["git"]["remote"]["userEmail"],
+        folderName=config["benchmark"]["paramTypes"]["fromTrueParamsDir"],
+        commitMSG="[remote] added results of " + config["benchmark"]["phyloInf"]["fromTrueMonovarDir"].strip("/")
+    shell:
+        "cd {params.dataDir}; "
+        "git config --local user.name \"{params.remoteUserName}\"; "
+        "git config --local user.email \"{params.remoteUserEmail}\"; "
+        "git add {params.folderName}; "
+        "git commit -m \"{params.commitMSG}\"; "
+        "cd {SNAKEMAKEDIR}; "
+        "touch {output}"
+
+# Rule: copy data from git repository to local folder
+rule copyDataFromGit2Local:
+    input:
+        data=SIFITGITSKELETONTRUEMONOVARREMOTEDIR + config["benchmark"]["paramTypes"]["fromTrueParamsDir"] + "{datasetName}/data",
+        cellNames=SIFITGITSKELETONTRUEMONOVARREMOTEDIR + config["benchmark"]["paramTypes"]["fromTrueParamsDir"] + "{datasetName}/cell_names"
+    output:
+        dataTrueParams=protected(config["benchmark"]["paramTypes"]["fromTrueParamsDir"] + "{datasetName}/data"),
+        cellNamesTrueParams=protected(config["benchmark"]["paramTypes"]["fromTrueParamsDir"] + "{datasetName}/cell_names")
+    shell:
+        "cp {input.data} {output.dataTrueParams}; "
+        "cp {input.cellNames} {output.cellNamesTrueParams}"
+
+# Rule: run SIFIT with TRUE parameters and SNVs called by Monovar with true parameters on remote server
+rule runSifitWithTrueMonovarSNVsTrueParams:
+    input:
+        data=config["benchmark"]["paramTypes"]["fromTrueParamsDir"] + "{datasetName}/data",
+        cellNames=config["benchmark"]["paramTypes"]["fromTrueParamsDir"] + "{datasetName}/cell_names"
+    output:
+        out=protected(config["benchmark"]["paramTypes"]["fromTrueParamsDir"] + "{datasetName}/true_out"),
+        tree=protected(config["benchmark"]["paramTypes"]["fromTrueParamsDir"] + "{datasetName}/data_mlTree.newick")
+    params:
+        sifit=config["tools"]["sifitRemote"],
+        loops=config["fineTune"]["sifit"]["loops"],
+        fp=config["benchmark"]["analysis"]["effSeqErrRate"],
+        fn=config["benchmark"]["analysis"]["adoRate"],
+        cellNum=lambda wildcards, input: get_item_num(input.cellNames),
+        siteNum=lambda wildcards, input: get_line_num(input.data)
+    shell:
+        "java -jar {params.sifit} "
+        "-m {params.cellNum} "
+        "-n {params.siteNum} "
+        "-fp {params.fp} "
+        "-fn {params.fn} "
+        "-iter {params.loops} "
+        "-df 1 -ipMat {input.data} "
+        "-cellNames {input.cellNames} "
+        "&>{output.out}"
+
+# Rule: copy results from remote server to local server
+rule copyResultsToLocal:
+    input:
+        outTrueParams=config["benchmark"]["paramTypes"]["fromTrueParamsDir"] + "{datasetName}/true_out",
+        treeTrueParams=config["benchmark"]["paramTypes"]["fromTrueParamsDir"] + "{datasetName}/data_mlTree.newick"
+    output:
+        outTrueParams=protected(SIFITGITSKELETONTRUEMONOVARREMOTEDIR + config["benchmark"]["paramTypes"]["fromTrueParamsDir"] + "{datasetName}/true_out"),
+        treeTrueParams=protected(SIFITGITSKELETONTRUEMONOVARREMOTEDIR + config["benchmark"]["paramTypes"]["fromTrueParamsDir"] + "{datasetName}/data_mlTree.newick")
+    shell:
+        "cp {input.outTrueParams} {output.outTrueParams}; "
+        "cp {input.treeTrueParams} {output.treeTrueParams}"
+

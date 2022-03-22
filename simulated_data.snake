@@ -1,0 +1,90 @@
+import shutil
+
+include: "scripts/constants.py"
+include: "scripts/utils.py"
+
+#########################################################
+#              Get simulated dataset names              #
+#########################################################
+
+SIMUDATASETNAMES = get_dataset_names(SIMUSNVSITESDIR)
+
+
+########################################################
+#             Summarize parallel mutations             #
+########################################################
+
+# Rule: gather the information of parallel mutations.
+rule gatherParallelMutations:
+    input:
+        trueSNVSites=expand(SIMUSNVSITESDIR + config["benchmark"]["simulation"]["trueSNVSitesNamesPre"] + ".{datasetName}", datasetName=SIMUDATASETNAMES),
+        parallelMuts=expand(SIMUPARALLELMUTDIR + config["benchmark"]["simulation"]["parallelMutPre"] + ".{datasetName}", datasetName=SIMUDATASETNAMES)
+    output:
+        SIMUPARALLELMUTDIR + "summary.tsv"
+    params:
+        datasets=SIMUDATASETNAMES,
+        cellNum=config["benchmark"]["analysis"]["cellNum"],
+        covMean=config["benchmark"]["analysis"]["covMean"],
+        covVariance=config["benchmark"]["analysis"]["covVariance"],
+        effSeqErrRate=config["benchmark"]["analysis"]["effSeqErrRate"],
+        adoRate=config["benchmark"]["analysis"]["adoRate"],
+        deletionRate=config["benchmark"]["analysis"]["deletionRate"],
+        insertionRate=config["benchmark"]["analysis"]["insertionRate"]
+    script:
+        "scripts/gather_parallel_mutations.R"
+
+
+########################################################
+#         Convert branch lengths of true trees         #
+########################################################
+
+# Rule: convert branch lengths of true trees from measured in the number of generations to measured in the number of mutations
+rule convertTrueTreesWithTrunkWithoutNormal:
+    input:
+        SIMUTRUETREEDIR + config["benchmark"]["simulation"]["treesWithTrunkWithoutNormalDir"] + config["benchmark"]["simulation"]["treesPre"] + ".{datasetName}"
+    output:
+        SIMUCONVERTEDTRUETREEDIR + config["benchmark"]["simulation"]["treesWithTrunkWithoutNormalDir"] + config["benchmark"]["simulation"]["treesPre"] + ".{datasetName}"
+    params:
+        mu = config["benchmark"]["analysis"]["mutationRate"]
+    conda:
+        "scripts/envs/biopython.yaml"
+    shell:
+        "python scripts/convert_true_tree.py "
+        "-i {input} "
+        "-m {params.mu} "
+        "-o {output}"
+
+# Rule: convert branch lengths of true trees from measured in the number of generations to measured in the number of mutations
+rule convertTrueTreesWithoutTrunkWithoutNormal:
+    input:
+        SIMUTRUETREEDIR + config["benchmark"]["simulation"]["treesWithoutTrunkWithoutNormalDir"] + config["benchmark"]["simulation"]["treesPre"] + ".{datasetName}"
+    output:
+        SIMUCONVERTEDTRUETREEDIR + config["benchmark"]["simulation"]["treesWithoutTrunkWithoutNormalDir"] + config["benchmark"]["simulation"]["treesPre"] + ".{datasetName}"
+    params:
+        mu = config["benchmark"]["analysis"]["mutationRate"]
+    conda:
+        "scripts/envs/biopython.yaml"
+    shell:
+        "python scripts/convert_true_tree.py "
+        "-i {input} "
+        "-m {params.mu} "
+        "-o {output}"
+
+
+#######################################################
+#               Get info from true data               #
+#######################################################
+
+# rule collectTrueSNVAdoInfo:
+#     input:
+#         snvSitesNames=SIMUSNVSITESDIR + config["benchmark"]["simulation"]["trueSNVSitesNamesPre"] + ".{datasetName}",
+#         cellNames=SIMUTUMORCELLNAMES,
+#         trueGenotypes=SIMUTRUESNVDIR + config["benchmark"]["simulation"]["trueSNVGenotypesNUPre"] + ".{datasetName}",
+#         trueAdoStates=SIMUTRUEADOSTATESDIR + config["benchmark"]["simulation"]["trueAdoStatesPre"] + ".{datasetName}"
+#     output:
+#         withAdoHetero=protected(SIMUTRUESNVADODIR + config["benchmark"]["simulation"]["trueSNVWithAdoHeteroPre"] + ".{datasetName}"),
+#         withoutAdoHetero=protected(SIMUTRUESNVADODIR + config["benchmark"]["simulation"]["trueSNVWithoutAdoHeteroPre"] + ".{datasetName}"),
+#         withAdoHomo=protected(SIMUTRUESNVADODIR + config["benchmark"]["simulation"]["trueSNVWithAdoHomoPre"] + ".{datasetName}"),
+#         withoutAdoHomo=protected(SIMUTRUESNVADODIR + config["benchmark"]["simulation"]["trueSNVWithoutAdoHomoPre"] + ".{datasetName}")
+#     script:
+#         "scripts/collect_true_snv_ado_info.py"

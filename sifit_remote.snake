@@ -1,0 +1,216 @@
+import shutil
+
+include: "scripts/constants.py"
+include: "scripts/utils.py"
+
+#########################################################
+#              Get simulated dataset names              #
+#########################################################
+
+SIMUDATASETNAMES = get_dataset_names(SIMUSNVSITESDIR)
+
+
+########################################################
+#        Get the working directory of SNAKEMAKE        #
+########################################################
+
+SNAKEMAKEDIR = get_abs_working_dir()
+
+
+########################################################
+#          Initialize git for file exchanging          #
+########################################################
+
+create_sifit_flag_file(SIFITLOCALFLAGFILETRUEMONOVARINITSKELETONIN)
+
+
+########################################################
+#                 SIFIT - From Monovar                 #
+########################################################
+
+# Rule: prepare git for file exchanging of SiFit running results between servers
+rule prepareGit4SifitWithTrueMonovarSNVs:
+    input:
+        SIFITLOCALFLAGFILETRUEMONOVARINITSKELETONIN
+    output:
+        protected(SIFITLOCALFLAGFILETRUEMONOVARINITSKELETONOUT)
+    params:
+        localUserName=config["benchmark"]["git"]["local"]["userName"],
+        localUserEmail=config["benchmark"]["git"]["local"]["userEmail"],
+        commitMSG="[local] initial commit to SiFit: " + config["benchmark"]["phyloInf"]["fromTrueMonovarDir"].strip("/"),
+        branchName=config["benchmark"]["git"]["branchName"],
+        remoteName=config["benchmark"]["git"]["local"]["remoteName"],
+        skeletonRELAPATH=SIFITGITSKELETONTRUEMONOVARLOCALDIR,
+        skeletonABSPath=os.path.abspath(SIFITGITSKELETONTRUEMONOVARLOCALDIR),
+        dataDir=SIFITTRUEMONOVARSNVSLOCALDIR,
+        inFile=config["benchmark"]["sifit"]["flag"]["dir"] + config["benchmark"]["sifit"]["flag"]["initSkeletonIn"],
+        outFile=config["benchmark"]["sifit"]["flag"]["dir"] + config["benchmark"]["sifit"]["flag"]["initSkeletonOut"]
+    priority:
+        100
+    shell:
+        "touch {output}; "
+        "mkdir -p {params.skeletonRELAPATH}; "
+        "cd {params.skeletonRELAPATH}; "
+        "git --bare init; "
+        "cd {SNAKEMAKEDIR}; "
+        "cd {params.dataDir}; "
+        "git init; "
+        "git config --local user.name \"{params.localUserName}\"; "
+        "git config --local user.email \"{params.localUserEmail}\"; "
+        "git add {params.inFile} {params.outFile}; "
+        "git commit -m \"{params.commitMSG}\"; "
+        "git branch -M {params.branchName}; "
+        "git remote add {params.remoteName} {params.skeletonABSPath}; "
+        "git push -u {params.remoteName} {params.branchName}; "
+        "cd {SNAKEMAKEDIR}"
+
+# Rule: copy data files to results folder of Sifit
+rule copySifitDataWithTrueMonovarSNVs:
+    input:
+        data=MONOVARTRUEPARAMSDIR + "{datasetName}/post_processed/filtered.sifit_data",
+        cellNames=MONOVARTRUEPARAMSDIR + "{datasetName}/post_processed/filtered.sifit_cell_names"
+    output:
+        data=protected(SIFITTRUEMONOVARSNVSTRUEPARAMSLOCALDIR + "{datasetName}/data"),
+        cellNames=protected(SIFITTRUEMONOVARSNVSTRUEPARAMSLOCALDIR + "{datasetName}/cell_names")
+    priority:
+        100
+    shell:
+        "cp {input.cellNames} {output.cellNames}; "
+        "cp {input.data} {output.data}"
+
+# Rule: push commits in git
+rule pushSifitDataWithTrueMonovarSNVs:
+    input:
+        flagFile=SIFITLOCALFLAGFILETRUEMONOVARINITSKELETONOUT,
+        dataFiles=expand(SIFITTRUEMONOVARSNVSTRUEPARAMSLOCALDIR + "{datasetName}/data", datasetName=SIMUDATASETNAMES),
+        cellNamesFiles=expand(SIFITTRUEMONOVARSNVSTRUEPARAMSLOCALDIR + "{datasetName}/cell_names", datasetName=SIMUDATASETNAMES)
+    output:
+        protected(SIFITLOCALFLAGFILEPUSHEDTRUEMONOVARDATA)
+    params:
+        dataDir=SIFITTRUEMONOVARSNVSLOCALDIR,
+        gitAddDir=config["benchmark"]["paramTypes"]["fromTrueParamsDir"],
+        commitMSG="[local] added data files of " + config["benchmark"]["phyloInf"]["fromTrueMonovarDir"].strip("/"),
+        branchName=config["benchmark"]["git"]["branchName"],
+        remoteName=config["benchmark"]["git"]["local"]["remoteName"]
+    priority:
+        100
+    shell:
+        "touch {output}; "
+        "cd {params.dataDir}; "
+        "git add {params.gitAddDir}; "
+        "git commit -m \"{params.commitMSG}\"; "
+        "git push -u {params.remoteName} {params.branchName}; "
+        "cd {SNAKEMAKEDIR}"
+
+# Rule: run SIFIT with filtered SNVs called by Monovar working with TRUE parameters on remote server
+checkpoint runSifitWithTrueMonovarSNVsRemote:
+    input:
+        flagFile=SIFITLOCALFLAGFILEPUSHEDTRUEMONOVARDATA,
+        configFile=config["configFiles"]["all"],
+        snakeFile=config["configFiles"]["sifitRemote"]["snakeFiles"]["fromTrueMonovar"],
+        bashScript=config["configFiles"]["sifitRemote"]["bashScripts"]["fromTrueMonovar"]
+    output:
+        protected(SIFITTRUEMONOVARSNVSLOCALDIR + "done")
+    params:
+        dataDir=SIFITTRUEMONOVARSNVSLOCALDIR,
+        branchName=config["benchmark"]["git"]["branchName"],
+        remoteName=config["benchmark"]["git"]["local"]["remoteName"],
+        snakemakeDir=config["benchmark"]["sifit"]["dir"] + config["configFiles"]["sifitRemote"]["prefix"]["fromTrueMonovar"],
+        gitDir=config["benchmark"]["git"]["skeletonDir"] + config["benchmark"]["sifit"]["dir"],
+        repoPath=os.path.abspath(SIFITGITSKELETONTRUEMONOVARLOCALDIR),
+        dataset=SIMUDATASETNAMES,
+        log=SIFITTRUEMONOVARSNVSLOCALDIR + "out"
+    conda:
+        "scripts/envs/ssh.yaml"
+    priority:
+        100
+    shell:
+        "python scripts/execute_on_remote_server_git.py "
+        "--config {input.configFile} "
+        "--bash {input.bashScript} "
+        "--upload {input.snakeFile} "
+        "--dataset {params.dataset} "
+        "--snkmkdir {params.snakemakeDir} "
+        "--gitdir {params.gitDir} "
+        "--repopath {params.repoPath} "
+        "&> {params.log}; "
+        "cd {params.dataDir}; "
+        "git pull {params.remoteName} {params.branchName}; "
+        "cd {SNAKEMAKEDIR}; "
+        "touch {output}"
+
+
+#######################################################
+#               Gather trees from SIFIT               #
+#######################################################
+
+
+# Function: get tree files from SIFIT with filtered SNVs called by Monovar working with TRUE parameters
+def get_sifit_trees_true_monovar(wildcards, subfolder):
+    root_path = os.path.join(os.path.dirname(checkpoints.runSifitWithTrueMonovarSNVsRemote.get().output[0]), subfolder)
+    # shell("echo \"%s\" >&2" % root_path)
+    files = expand(root_path + "{datasetName}/data_mlTree.newick", datasetName=SIMUDATASETNAMES)
+    # for _file in files:
+    #     shell("echo \"%s\" >&2 " % _file)
+    return files
+
+# Rule: gather inferred trees from SIFIT with TRUE parameters and filtered SNVs called by Monovar working with TRUE parameters
+rule gatherSifitTreesTrueMonovarSNVsTrueParams:
+    input:
+        inferredTrees = lambda wildcards: get_sifit_trees_true_monovar(wildcards, config["benchmark"]["paramTypes"]["fromTrueParamsDir"]),
+        trueTrees = expand(SIMUCONVERTEDTRUETREEDIR + config["benchmark"]["simulation"]["treesWithoutTrunkWithoutNormalDir"] + config["benchmark"]["simulation"]["treesPre"] + ".{datasetName}", datasetName=SIMUDATASETNAMES)
+    output:
+        ANALYSISTREECOMPDIR + "from_sifit_" + config["benchmark"]["analysis"]["trueMonovarSNVs"] + "_" + config["benchmark"]["analysis"]["trueParameters"] + ".tsv"
+    params:
+        forSieve=False,
+        datasetNames=SIMUDATASETNAMES,
+        trueTreesDir=SIMUCONVERTEDTRUETREEDIR + config["benchmark"]["simulation"]["treesWithoutTrunkWithoutNormalDir"],
+        trueTreesPre=config["benchmark"]["simulation"]["treesPre"],
+        tool="sifit",
+        snvType=config["benchmark"]["analysis"]["trueMonovarSNVs"],
+        toolSetup=config["benchmark"]["analysis"]["trueParameters"],
+        cellNum=config["benchmark"]["analysis"]["cellNum"],
+        covMean=config["benchmark"]["analysis"]["covMean"],
+        covVariance=config["benchmark"]["analysis"]["covVariance"],
+        effSeqErrRate=config["benchmark"]["analysis"]["effSeqErrRate"],
+        adoRate=config["benchmark"]["analysis"]["adoRate"],
+        deletionRate=config["benchmark"]["analysis"]["deletionRate"],
+        insertionRate=config["benchmark"]["analysis"]["insertionRate"]
+    conda:
+        "scripts/envs/pandas.yaml"
+    script:
+        "scripts/gather_inferred_trees_part.py"
+
+
+########################################################
+#               Get estimates from SIFIT               #
+########################################################
+
+# Function: get parameter estimates files from SIFIT with filtered SNVs called by Monovar working with TRUE parameters
+def get_sifit_parameters_true_monovar(wildcards, subfolder, file_name):
+    root_path = os.path.join(os.path.dirname(checkpoints.runSifitWithTrueMonovarSNVsRemote.get().output[0]), subfolder)
+    # shell("echo \"%s\" >&2" % root_path)
+    files = expand(root_path + "{datasetName}/" + file_name, datasetName=SIMUDATASETNAMES)
+    # for _file in files:
+    #     shell("echo \"%s\" >&2 " % _file)
+    return files
+
+# Rule: get parameter estimates from SIFIT with TRUE parameters and filtered SNVs called by Monovar working with TRUE parameters
+rule getSifitParamsWithTrueMonovarSNVsTrueParams:
+    input: 
+        lambda wildcards: get_sifit_parameters_true_monovar(wildcards, config["benchmark"]["paramTypes"]["fromTrueParamsDir"], "true_out")
+    output: 
+        ANALYSISPARAMSDIR + "from_sifit_" + config["benchmark"]["analysis"]["trueMonovarSNVs"] + "_" + config["benchmark"]["analysis"]["trueParameters"] + ".tsv"
+    params:
+        cellNum=config["benchmark"]["analysis"]["cellNum"],
+        covMean=config["benchmark"]["analysis"]["covMean"],
+        covVariance=config["benchmark"]["analysis"]["covVariance"],
+        datasetNames=SIMUDATASETNAMES,
+        tool="sifit",
+        snvType=config["benchmark"]["analysis"]["trueMonovarSNVs"],
+        toolSetup=config["benchmark"]["analysis"]["trueParameters"]
+    conda:
+        "scripts/envs/pandas.yaml"
+    script:
+        "scripts/get_param_estimates_sifit.py"
+

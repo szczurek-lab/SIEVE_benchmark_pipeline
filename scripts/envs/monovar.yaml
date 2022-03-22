@@ -1,0 +1,10 @@
+channels:
+  - bioconda
+  - defaults
+  - conda-forge
+
+dependencies:
+  - python = 2.7
+  - pysam = 0.10.0
+  - monovar = 0.0.1
+  

@@ -1,0 +1,120 @@
+import shutil
+
+include: "scripts/constants.py"
+include: "scripts/utils.py"
+
+#########################################################
+#              Get simulated dataset names              #
+#########################################################
+
+SIMUDATASETNAMES = get_dataset_names(SIMUSNVSITESDIR)
+
+
+#######################################################
+#                MONOVAR - True params                #
+#######################################################
+
+# Rule: run MOVONAR with TRUE parameters
+rule runMonovarWithTrueParams:
+    input: 
+        mpileupFile=SIMUMPILEUPDATADIR + "{datasetName}/" + SIMUMPILEUPWITHOUTNORMAL,
+        refFile=SIMURAWDATADIR + "{datasetName}/" + config["benchmark"]["simulation"]["refGenomeData"],
+        bamFileNames=SIMUMONOVARDIR + config["benchmark"]["simulation"]["bamFileNamesWithoutNormal"]
+    output: 
+        protected(MONOVARTRUEPARAMSDIR + "{datasetName}/monovar.vcf")
+    params:
+        monovar=config["tools"]["monovar"],
+        fpPrior=config["benchmark"]["analysis"]["effSeqErrRate"],
+        fnPrior=config["benchmark"]["analysis"]["adoRate"],
+        prefix=MONOVARTRUEPARAMSDIR + "{datasetName}/"
+    threads:
+        config["fineTune"]["monovar"]["threads"]
+    conda:
+        "scripts/envs/monovar.yaml"
+    shell: 
+        "cat {input.mpileupFile} | "
+        "{params.monovar} "
+        "-p {params.fpPrior} "
+        "-a {params.fnPrior} "
+        "-t 0.05 "
+        "-m {threads} "
+        "-f {input.refFile} "
+        "-b {input.bamFileNames} "
+        "-o {params.prefix}monovar.vcf"
+
+# Rule: filter VCF results from MONOVAR with TRUE parameters
+rule filterMonovarVarInfoTrueParams:
+    input:
+        MONOVARTRUEPARAMSDIR + "{datasetName}/monovar.vcf"
+    output:
+        gz=protected(MONOVARTRUEPARAMSDIR + "{datasetName}/monovar.vcf.gz"),
+        filtered=protected(MONOVARTRUEPARAMSDIR + "{datasetName}/filtered.vcf")
+    conda:
+        "scripts/envs/bcftools.yaml"
+    shell:
+        "bgzip -c {input} > {output.gz}; "
+        "tabix -p vcf {output.gz}; "
+        "bcftools filter "
+        "--include \"FILTER='PASS'\" "
+        "--output-type v "
+        "--output {output.filtered} "
+        "{output.gz}"
+
+# Rule: get variant calling information from MONOVAR with TRUE parameters
+rule getMonovarVarInfoTrueParams:
+    input:
+        MONOVARTRUEPARAMSDIR + "{datasetName}/filtered.vcf"
+    output:
+        cellNames=protected(MONOVARTRUEPARAMSDIR + "{datasetName}/post_processed/filtered.cell_names"),
+        lociInfo=protected(MONOVARTRUEPARAMSDIR + "{datasetName}/post_processed/filtered.loci_info"),
+        genotypes=protected(MONOVARTRUEPARAMSDIR + "{datasetName}/post_processed/filtered.genotypes"),
+        ternary=protected(MONOVARTRUEPARAMSDIR + "{datasetName}/post_processed/filtered.ternary"),
+        genotypeProbs=protected(MONOVARTRUEPARAMSDIR + "{datasetName}/post_processed/filtered.genotype_probs"),
+        sifitData=protected(MONOVARTRUEPARAMSDIR + "{datasetName}/post_processed/filtered.sifit_data"),
+        sifitCellNames=protected(MONOVARTRUEPARAMSDIR + "{datasetName}/post_processed/filtered.sifit_cell_names")
+    params:
+        prefix=MONOVARTRUEPARAMSDIR + "{datasetName}/post_processed/filtered"
+    shell:
+        "python scripts/extract_info_from_vcf.py "
+        "--mode monovar "
+        "--prefix {params.prefix} "
+        "--sifit t "
+        "{input}"
+
+
+########################################################
+#       Get variant calling results from MONOVAR       #
+########################################################
+
+# Rule: gather filtered variant calling results from MONOVAR working with TRUE parameters
+rule gatherMonovarVarResultsTrueParams:
+    input: 
+        cellNames=expand(MONOVARTRUEPARAMSDIR + "{datasetName}/post_processed/filtered.cell_names", datasetName=SIMUDATASETNAMES),
+        lociInfo=expand(MONOVARTRUEPARAMSDIR + "{datasetName}/post_processed/filtered.loci_info", datasetName=SIMUDATASETNAMES),
+        genotypes=expand(MONOVARTRUEPARAMSDIR + "{datasetName}/post_processed/filtered.genotypes", datasetName=SIMUDATASETNAMES),
+        ternary=expand(MONOVARTRUEPARAMSDIR + "{datasetName}/post_processed/filtered.ternary", datasetName=SIMUDATASETNAMES),
+        genotypeProbs=expand(MONOVARTRUEPARAMSDIR + "{datasetName}/post_processed/filtered.genotype_probs", datasetName=SIMUDATASETNAMES)
+    output: 
+        ANALYSISVARCALLDIR + "from_monovar_" + config["benchmark"]["analysis"]["trueParameters"] + ".tsv"
+    params:
+        forSieve=False,
+        mergedDuplicateLines=False,
+        datasetNames=SIMUDATASETNAMES,
+        tool="monovar",
+        toolSetup=config["benchmark"]["analysis"]["trueParameters"],
+        trueCellNames=SIMUTUMORCELLNAMES,
+        trueLociInfoPre=SIMUSNVSITESDIR + config["benchmark"]["simulation"]["trueSNVSitesNamesPre"],
+        trueGenotypesNUPre=SIMUTRUESNVDIR + config["benchmark"]["simulation"]["trueSNVGenotypesNUPre"],
+        trueGenotypesTerPre=SIMUTRUESNVDIR + config["benchmark"]["simulation"]["trueSNVGenotypesTerPre"],
+        cellNum=config["benchmark"]["analysis"]["cellNum"],
+        covMean=config["benchmark"]["analysis"]["covMean"],
+        covVariance=config["benchmark"]["analysis"]["covVariance"],
+        effSeqErrRate=config["benchmark"]["analysis"]["effSeqErrRate"],
+        adoRate=config["benchmark"]["analysis"]["adoRate"],
+        deletionRate=config["benchmark"]["analysis"]["deletionRate"],
+        insertionRate=config["benchmark"]["analysis"]["insertionRate"]
+    conda:
+        "scripts/envs/pandas.yaml"
+    script:
+        "scripts/gather_variant_calling_results_part.py"
+

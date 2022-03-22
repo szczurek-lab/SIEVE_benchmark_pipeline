@@ -1,0 +1,13 @@
+.gitignore
+
+**/.snakemake
+**/.vscode
+**/.idea
+
+out
+
+/benchmark_results
+
+.DS_Store
+__pycache__/
+

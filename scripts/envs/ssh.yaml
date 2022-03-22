@@ -1,0 +1,8 @@
+channels:
+  - defaults
+  - conda-forge
+
+dependencies:
+  - paramiko = 2.7.2
+  - pyyaml = 5.3.1
+  

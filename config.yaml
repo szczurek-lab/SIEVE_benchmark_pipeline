@@ -1,0 +1,355 @@
+# Any keys end with 'Dir' should have a value ending with '/'.
+
+# Set paths to the following tools.
+tools:
+  # TO BE SET [MANDATORY]
+  SIEVE_simulator: /path/to/SIEVE_simulator
+  
+  # TO BE SET [MANDATORY]
+  cellphy: /path/to/cellphy
+  
+  # Only when SiFit will be run locally.
+  # TO BE SET [MANDATORY]
+  sifitLocal: /path/to/local/sifit
+  
+  # Only when SiFit will be run on a remote server.
+  # TO BE SET [MANDATORY]
+  sifitRemote: /path/to/server/sifit
+  
+  # TO BE SET [MANDATORY]
+  monovar: /path/to/monovar
+  
+  # TO BE SET [MANDATORY]
+  sciphi: /path/to/sciphi
+  
+  # TO BE SET [MANDATORY]
+  dataFilter: /path/to/dataFilter
+  
+  # TO BE SET [MANDATORY]
+  applauncher: /path/to/applauncher
+  
+  # TO BE SET [MANDATORY]
+  beast: /path/to/beast
+
+# Only when SiFit will be run on a remote server.
+servers:
+  # A remote server having a public IP address for the remote server within a private network.
+  # TO BE SET [OPTIONAL]
+  jumpServerOfRemote:
+    required: False
+    host: ''
+    user: ''
+    password: ''
+    port: 22
+  
+  # Remote server for running SiFit.
+  # TO BE SET [OPTIONAL]
+  remoteServer:
+    host: ''
+    user: ''
+    password: ''
+    port: 22
+    rootPath: ''
+  
+  # Local machine.
+  # TO BE SET [OPTIONAL]
+  localServer:
+    host: ''
+    user: ''
+    password: ''
+    port: 22
+    rootPath: ''
+
+# Set paths to the configuration files.
+configFiles:
+  # This config file; relative to the Snakemake files.
+  all: config.yaml
+
+  # Relative or absolute path.
+  # TO BE SET [MANDATORY]
+  SIEVE_simulator: 'simulation_configs/simulated_data_3'
+
+  sieve:
+    # Relative or absolute path.
+    dir: templates/
+
+    # In 'dir'.
+    fileNames:
+    # TO BE SET [MANDATORY]
+      - smc_stage_1
+
+    # For the two-stage strategy; in 'dir'.
+
+    # Files of stage1 must also be under 'fileNames'.
+    # TO BE SET [MANDATORY]
+    stage1FileNames:
+      - smc_stage_1
+    # TO BE SET [MANDATORY]
+    stage2FileNames:
+      - smc_stage_2
+
+    suffix: .xml
+
+  # If SiFit will be run on a remote server.
+  sifitRemote:
+    # Relative path.
+    snakeFiles:
+      fromTrueMonovar: remote_sifit_true_monovar.snake
+
+    # Relative path.
+    bashScripts:
+      fromTrueMonovar: run/run_remote_sifit_true_monovar.sh
+
+    # Do not forget '/' if it is a folder.
+    prefix:
+      fromTrueMonovar: from_true_monovar/
+    
+
+# Set parameter values for tools.
+fineTune:
+  SIEVE_simulator:
+    # Whether to overwrite if simulated data exist.
+    # boolean; 'true' or 'false'.
+    overwrite: false
+
+  cellphy:
+    seed: 142355436435
+    threads: 1
+    parsTrees: 5
+
+  sifit:
+    loops: 1000
+
+  monovar:
+    threads: 1
+
+  sciphi:
+    loops: 1
+    seed: 64
+
+  beast:
+    nrOfSitesPerThreadStage1: 1000
+    nrOfSitesPerThreadStage2: 1500
+    seed: 142355436435
+
+  treeAnnotator:
+    burnIn: 10
+
+  variantCaller:
+    burnIn: 10
+    threads: 1
+
+    # One of 'all', 'median', 'mean', and 'mode'.
+    estimates: all
+
+
+# Set some constants in benchmarking.
+benchmark:
+  # Use relative path to current working directory or absolute directory.
+  # TO BE SET [OPTIONAL]
+  baseDir: benchmark_results/
+
+  # For simulated data
+  simulation:
+    dir: simulated_data/
+    
+    # The most recent common parent folder name of all simulated data files.
+    dataDir: results/
+
+    normalCellName: healthycell
+
+    # For tumor cell names; under 'dataDir'.
+    tumorCellNames: snv_cell_names
+
+    # For the names of TRUE SNV sites; under 'dataDir'.
+    trueSNVSitesNamesDir: true_snv_sites_names_dir/
+    trueSNVSitesNamesPre: true_snv_sites_names
+
+    # For the information of TRUE SNV sites; under 'dataDir'.
+    trueSNVDir: true_snv_dir/
+    trueSNVEvoEvents: evolutionary_events_summary
+    trueSNVCovPre: true_snv_coverage
+    trueSNVGenotypesALPre: true_snv_genotypes_alphabetic
+    trueSNVGenotypesNUPre: true_snv_genotypes_numeric
+    trueSNVGenotypesTerPre: true_snv_ternary_matrix
+
+    # For parallel mutations; under 'dataDir'
+    parallelMutDir: parallel_mutation_dir/
+    parallelMutPre: parallel_mutations
+
+    # For the information of (TRUE SNV,cell) and TRUE ADO state; under 'dataDir'.
+    # trueSNVAdoDir: true_snv_ado_dir/
+    # trueSNVWithAdoHeteroPre: true_snv_with_ado_hetero
+    # trueSNVWithoutAdoHeteroPre: true_snv_without_ado_hetero
+    # trueSNVWithAdoHomoPre: true_snv_with_ado_homo
+    # trueSNVWithoutAdoHomoPre: true_snv_without_ado_homo
+
+    # For real tree used to generate simulated data; under 'dataDir'.
+    # Originally, branch lengths of real trees are measured by the number of generations in coalescence process.
+    treesDir: trees_dir/
+    treesWithTrunkWithoutNormalDir: with_trunk_without_normal_dir/
+    treesWithoutTrunkWithNormalDir: without_trunk_with_normal_dir/
+    treesWithoutTrunkWithoutNormalDir: without_trunk_without_normal_dir/
+    treesPre: tree
+
+    # For real trees whose branch lengths are measured in the number of mutations in coalescence process.
+    convertedTreesDir: converted_trees_dir/
+
+    # For allelic seuqnecing information (coverage and raw variance) of TRUE SNV sites; under 'dataDir'.
+    trueAllelicSeqInfoSNVsDir: true_snv_allelic_seq_info_dir/
+    trueAllelicSeqInfoSNVsPre: true_snv_allelic_seq_info
+
+    # For ADO states information; under 'dataDir'.
+    trueAdoStatesDir: ado_state_dir/
+    trueAdoStatesPre: ado_states
+
+    # For size factors information; under 'dataDir'.
+    trueSizeFactorsDir: size_factors_dir/
+    trueSizeFactorsPre: size_factors
+
+    # For raw sequencing data; under 'dataDir'.
+    rawDataDir: raw_seq_data_dir/
+    normalCellDataPre: healthycell
+    tumorCellDataPre: tumcell
+    rawDataSuf: .fastq
+    refGenomeData: reference.fasta
+
+    # For aligned sequencing data; under 'dataDir'.
+    MPileUpDataDir: mpileup_data_dir/
+    MPileUpDataSuf: .pileup
+    MPileUpDataWithNormalPre: with_normal
+    MPileUpDataWithoutNormalPre: without_normal
+
+    # Dummy BAM files; under 'dataDir'.
+    dummyBam: 
+      dir: dummy_bam_data_dir/
+      
+    # BAM file names for Monovar and SCIPhI.
+    bamFileNamesWithNormal: bam_file_names_with_normal
+    bamFileNamesWithoutNormal: bam_file_names_without_normal
+    
+    # Input for Monovar; under 'dataDir'.
+    monovarDir: monovar_dir/
+    monovarCMDWithoutNormalTrueParams: without_normal_cmd_true_params
+    monovarCMDWithoutNormalDefaultParams: without_normal_cmd_default_params
+
+    # Input for SCIPhI; under 'dataDir'.
+    sciphiDir: sciphi_dir/
+    sciphiFilePre: sciphi
+    sciphiCMDWithoutNormal: without_normal_cmd
+
+  # For phylogenetic inference results
+  phyloInf:
+    fromTrueMonovarDir: from_true_monovar/
+    fromCandidate: from_candidate/
+
+  # For results of SiFit and Monovar; the type of command line parameters.
+  paramTypes:
+    fromTrueParamsDir: from_true_params/
+    fromTrueParamsZeroDir: from_true_params_zero/
+
+  # For SIEVE results.
+  sieve:
+    dir: sieve/
+    phyloInfDir: phylogenetic_inference/
+    variantCallingDir: variant_calling/
+    stage2Dir: stage2/
+
+  # For Cellphy results.
+  cellphy:
+    dir: cellphy/
+
+  # For SiFit results.
+  sifit:
+    dir: sifit/
+
+    # Flag files to ensure git to work.
+    flag:
+      dir: FLAG_FILES/
+
+      initSkeletonIn: INIT_SKELETON_IN
+      initSkeletonOut: INIT_SKELETON_OUT
+      pushedData: PUSHED_DATA
+  
+  # For git setup.
+  git:
+    skeletonDir: git/
+    branchName: main
+
+    # For local commit.
+    local:
+      userName: local
+      userEmail: local@local
+      remoteName: src
+
+    # For remote commit.
+    remote:
+      userName: remote
+      userEmail: remote@remote
+
+  # For Monovar results.
+  monovar:
+    dir: monovar/
+
+  # For SCIPhI results.
+  sciphi:
+    dir: sciphi/
+
+  # For analysis results.
+  analysis:
+    dir: analysis/
+
+    # SNV types.
+    candidateSNVs: candidate_snvs
+    trueMonovarSNVs: true_monovar_snvs
+
+    # Tool setup.
+    notApplicable: NA
+    trueParameters: true_parameters
+    cellphyEPMode: EP
+
+    # For tree comparison.
+    treeComparisonDir: tree_comparison/
+
+    # For parameter estimates.
+    paramsEstimatesDir: params_estimates/
+
+    # Estimates type for SCIPHI; 0 - median; 1 - mean.
+    estimatesTypeSciphi: 0
+
+    # Real values of some parameters in simulated data.
+    # TO BE SET [MANDATORY]
+    cellNum: 40
+    covMean: 20
+    covVariance: 10
+    effSeqErrRate: 0.001999
+    adoRate: 0.16334
+    correctedSeqErrorRate: 0.00001
+    correctedAdoRate: 0.00001
+    mutationRate: 0.000001
+    deletionRate: 0.0
+    insertionRate: 0.0
+    wildOverdis: 100.0
+    altOverdis: 2.5
+    ePopSize: 0.01
+    
+    # For variant calling results comparison.
+    varCallResultsDir: variant_calling_results/
+
+    # For ADO calling results comparison.
+    adoCallResultsDir: ado_calling_results/
+
+    # For estimated sizefactors.
+    # estimatedSizeFactorsDir: size_factors_results/
+
+    # For allelic information per cell.
+    # allelic sequencing coverage * size factor
+    # allelic sequencing coverage raw variance * size factor * size factor
+    allelicInfoPerCellDir: allelic_info_per_cell_dir/
+
+  # For efficiency benchmark
+  #efficiency:
+    #dir: efficiency/
+
+    # Number of repetitions for each dataset.
+    #repetition: 2

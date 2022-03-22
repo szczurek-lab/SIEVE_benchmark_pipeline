@@ -1,0 +1,7 @@
+channels:
+  - defaults
+  - conda-forge
+
+dependencies:
+  - biopython = 1.78
+  
