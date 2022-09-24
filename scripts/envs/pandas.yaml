@@ -1,7 +1,0 @@
-channels:
-  - defaults
-  - conda-forge
-
-dependencies:
-  - pandas = 1.1.4
-  

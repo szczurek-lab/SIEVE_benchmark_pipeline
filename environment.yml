@@ -1,0 +1,16 @@
+name: snake
+channels:
+  - conda-forge
+  - anaconda
+  - defaults
+  - bioconda
+dependencies:
+  - python=3.10.5
+  - snakemake=7.12.1
+  - pyyaml=6.0
+  - pandas=1.4.3
+  - biopython=1.79
+  - bcftools=1.15.1
+  - htslib=1.15.1
+  - tabix=1.11
+  - libopenblas=0.3.21
