@@ -1,13 +1,13 @@
 [PARAMETER FILE for CellCoal] [text in brackets will be ignored]
 
 [MULTITHREADS]
-    [number of threads] -2
+    [number of threads] -1
 
 [COALESCENT]
 	[(modified) first number: number of replicates;
 	  if the first number > 1, using the same tree to
 	  generate data (1) or not (0)] n2 0
-	[number of cells] s4
+	[number of cells] s6
 	[number of sites] l3000
 	[effective population size] e10000
 	[demographics] [h2 1000 100 40000 200 30000 20000]
