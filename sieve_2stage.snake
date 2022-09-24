@@ -1,14 +1,46 @@
-import shutil
+"""
+Explanation of wildcards:
+
+fineTuneTypeSieve: types of fine-tuning to perform for SIEVE defined in the configuration file, e.g., single thread, multi thread, etc.
+dataType: input data types, e.g., no CNVs, including CNVs, excluding CNVs, etc.
+datasetName: simulated dataset names, e.g., 0001, 0002, 0003...
+runTemplate: configuration templates for SIEVE.
+runTemplateStage1: configuration templates for SIEVE which will be the
+first stage of the two-stage strategy.
+runTemplateStage2: configuration templates for SIEVE which will be the
+second stage of the two-stage strategy.
+"""
+
 
 include: "scripts/constants.py"
 include: "scripts/utils.py"
 
+
 #########################################################
-#              Get simulated dataset names              #
+#              Get categories of wildcards              #
 #########################################################
 
 SIMUDATASETNAMES = get_dataset_names(SIMUSNVSITESDIR)
+FINETUNETYPESSIEVE = get_fine_tune_types(
+    config["fineTune"]["beast"],
+    config["benchmark"]["fineTuneTypes"]
+)
+SIMUDATATYPES = get_data_types(
+    config["benchmark"]["simulatedDataTypes"],
+    config["benchmark"]["simulation"]["dataTypes"]["CNVTypes"]
+)
+TEMPLATES = config["configFiles"]["sieve"]["fileNames"]
+STAGE_1_TEMPLATES = config["configFiles"]["sieve"]["stage1FileNames"]
+STAGE_2_TEMPLATES = config["configFiles"]["sieve"]["stage2FileNames"]
 
+wildcard_constraints:
+    fineTuneTypeSieve='|'.join([re.escape(i) for i in FINETUNETYPESSIEVE]) if FINETUNETYPESSIEVE is not None and len(FINETUNETYPESSIEVE) > 0 else NONE_PATTERN,
+    dataType='|'.join([re.escape(i) for i in SIMUDATATYPES]) if SIMUDATATYPES is not None and len(SIMUDATATYPES) > 0 else NONE_PATTERN,
+    datasetName='|'.join([re.escape(i) for i in SIMUDATASETNAMES]) if SIMUDATASETNAMES is not None and len(SIMUDATASETNAMES) > 0 else NONE_PATTERN,
+    runTemplate='|'.join([re.escape(i) for i in TEMPLATES]) if TEMPLATES is not None and len(TEMPLATES) > 0 else NONE_PATTERN,
+    runTemplateStage1='|'.join([re.escape(i) for i in STAGE_1_TEMPLATES]) if STAGE_1_TEMPLATES is not None and len(STAGE_1_TEMPLATES) > 0 else NONE_PATTERN,
+    runTemplateStage2='|'.join([re.escape(i) for i in STAGE_2_TEMPLATES]) if STAGE_2_TEMPLATES is not None and len(STAGE_2_TEMPLATES) > 0 else NONE_PATTERN
+        
 
 #######################################################
 #                                                     #
@@ -24,28 +56,29 @@ SIMUDATASETNAMES = get_dataset_names(SIMUSNVSITESDIR)
 # Rule: select candidate SNVs with datafilter
 rule selectCandidateSNVsForSieve:
     input:
-        data=SIMUMPILEUPDATADIR + "{datasetName}/" + SIMUMPILEUPWITHOUTNORMAL,
+        flagFile=SIMUDATATYPESDIR + "DONE_FLAG",
+        mpileupFile=SIMUDATATYPESDIR + "{dataType}/{datasetName}/read_counts" + config["benchmark"]["simulation"]["MPileUpDataSuf"],
         bamNames=SIMUSCIPHIDIR + config["benchmark"]["simulation"]["bamFileNamesWithoutNormal"]
     output:
-        protected(SIEVEFROMCANDIDATEPHYINFDIR + "{sieveRunTemplates}/{datasetName}/readCounts.tsv")
+        protected(SIEVEFROMCANDIDATEPHYINFDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplate}/{datasetName}/readCounts.tsv")
     params:
         dataFilter=config["tools"]["dataFilter"]
     shell:
         "{params.dataFilter} "
         "--cellNames {input.bamNames} "
-        "--in {input.data} "
+        "--in {input.mpileupFile} "
         "-o {output}"
 
 # Rule: integrate reads data from candidates into templates for SIEVE
 rule integrateCandidateSNVsForSieve:
-    input: 
-        SIEVEFROMCANDIDATEPHYINFDIR + "{sieveRunTemplates}/{datasetName}/readCounts.tsv"
-    output: 
-        protected(SIEVEFROMCANDIDATEPHYINFDIR + "{sieveRunTemplates}/{datasetName}/{sieveRunTemplates}_{datasetName}" + config["configFiles"]["sieve"]["suffix"])
+    input:
+        SIEVEFROMCANDIDATEPHYINFDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplate}/{datasetName}/readCounts.tsv"
+    output:
+        protected(SIEVEFROMCANDIDATEPHYINFDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplate}/{datasetName}/sieve" + config["configFiles"]["sieve"]["suffix"])
     params:
         dataCollector=config["tools"]["applauncher"] + " DataCollectorLauncher",
-        templates=config["configFiles"]["sieve"]["dir"] + "{sieveRunTemplates}" + config["configFiles"]["sieve"]["suffix"]
-    shell: 
+        templates=config["configFiles"]["sieve"]["dir"] + "{runTemplate}" + config["configFiles"]["sieve"]["suffix"]
+    shell:
         "{params.dataCollector} "
         "-cell {SIMUTUMORCELLNAMES} "
         "-data {input} "
@@ -54,22 +87,33 @@ rule integrateCandidateSNVsForSieve:
 
 # Rule: perfrom phylogenetic inference with SIEVE using Sciphi candicate SNVs
 rule runSieveWithCandidateSNVsPhyloInf:
-    input: 
-        rawData=SIEVEFROMCANDIDATEPHYINFDIR + "{sieveRunTemplates}/{datasetName}/readCounts.tsv",
-        configuredData=SIEVEFROMCANDIDATEPHYINFDIR + "{sieveRunTemplates}/{datasetName}/{sieveRunTemplates}_{datasetName}" + config["configFiles"]["sieve"]["suffix"]
-    output: 
-        trees=protected(SIEVEFROMCANDIDATEPHYINFDIR + "{sieveRunTemplates}/{datasetName}/{sieveRunTemplates}_{datasetName}.trees"),
-        mcmclog=protected(SIEVEFROMCANDIDATEPHYINFDIR + "{sieveRunTemplates}/{datasetName}/{sieveRunTemplates}_{datasetName}.log"),
-        state=protected(SIEVEFROMCANDIDATEPHYINFDIR + "{sieveRunTemplates}/{datasetName}/{sieveRunTemplates}_{datasetName}" + config["configFiles"]["sieve"]["suffix"] + ".state")
+    input:
+        rawData=SIEVEFROMCANDIDATEPHYINFDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplate}/{datasetName}/readCounts.tsv",
+        configuredData=SIEVEFROMCANDIDATEPHYINFDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplate}/{datasetName}/sieve" + config["configFiles"]["sieve"]["suffix"]
+    output:
+        trees=protected(SIEVEFROMCANDIDATEPHYINFDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplate}/{datasetName}/sieve.trees"),
+        mcmclog=protected(SIEVEFROMCANDIDATEPHYINFDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplate}/{datasetName}/sieve.log"),
+        state=protected(SIEVEFROMCANDIDATEPHYINFDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplate}/{datasetName}/sieve" + config["configFiles"]["sieve"]["suffix"] + ".state")
     params:
         beast=config["tools"]["beast"],
-        seed=config["fineTune"]["beast"]["seed"],
-        prefix=SIEVEFROMCANDIDATEPHYINFDIR + "{sieveRunTemplates}/{datasetName}/",
-        log=SIEVEFROMCANDIDATEPHYINFDIR + "{sieveRunTemplates}/{datasetName}/out"
+        seed=lambda wildcards: get_dict_values(
+            config,
+            ["fineTune", "beast", wildcards.fineTuneTypeSieve, "seed"]
+        ),
+        prefix=SIEVEFROMCANDIDATEPHYINFDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplate}/{datasetName}/",
+        log=SIEVEFROMCANDIDATEPHYINFDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplate}/{datasetName}/out"
     threads:
-        lambda wildcards, input: get_thread_num_for_sieve(input.rawData, config["fineTune"]["beast"]["nrOfSitesPerThreadStage1"])
+        lambda wildcards, input: get_thread_num_for_sieve(
+            input.rawData,
+            get_dict_values(
+                config,
+                ["fineTune", "beast", wildcards.fineTuneTypeSieve, "nrOfSitesPerThreadStage1"]
+            )
+        )
     priority:
-        50
+        100
+    benchmark:
+        repeat(EFFICIENCYSIEVEDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplate}/{datasetName}.tsv", config["benchmark"]["efficiency"]["repetition"])
     shell:
         "{params.beast} "
         "-overwrite "
@@ -81,16 +125,16 @@ rule runSieveWithCandidateSNVsPhyloInf:
 
 # Rule: perfrom tree annotation with SIEVE using Sciphi candicate SNVs
 rule runSieveWithCandidateSNVsTreeAnnotation:
-    input: 
-        SIEVEFROMCANDIDATEPHYINFDIR + "{sieveRunTemplates}/{datasetName}/{sieveRunTemplates}_{datasetName}.trees"
-    output: 
-        tree=protected(SIEVEFROMCANDIDATEPHYINFDIR + "{sieveRunTemplates}/{datasetName}/{sieveRunTemplates}_{datasetName}.tree"),
-        simpleTree=protected(SIEVEFROMCANDIDATEPHYINFDIR + "{sieveRunTemplates}/{datasetName}/{sieveRunTemplates}_{datasetName}_simple.tree")
+    input:
+        SIEVEFROMCANDIDATEPHYINFDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplate}/{datasetName}/sieve.trees"
+    output:
+        tree=protected(SIEVEFROMCANDIDATEPHYINFDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplate}/{datasetName}/sieve.tree"),
+        simpleTree=protected(SIEVEFROMCANDIDATEPHYINFDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplate}/{datasetName}/sieve_simple.tree")
     params:
         treeAnnotator=config["tools"]["applauncher"] + " ScsTreeAnnotatorLauncher",
         burnIn=config["fineTune"]["treeAnnotator"]["burnIn"],
-        log=SIEVEFROMCANDIDATEPHYINFDIR + "{sieveRunTemplates}/{datasetName}/process_tree.out"
-    shell: 
+        log=SIEVEFROMCANDIDATEPHYINFDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplate}/{datasetName}/process_tree.out"
+    shell:
         "{params.treeAnnotator} "
         "-burnin {params.burnIn} "
         "-simpleTree "
@@ -100,21 +144,21 @@ rule runSieveWithCandidateSNVsTreeAnnotation:
 
 # Rule: perfrom variant calling with SIEVE using Sciphi candicate SNVs
 rule runSieveWithCandidateSNVsVarCall:
-    input: 
-        mcmclog=SIEVEFROMCANDIDATEPHYINFDIR + "{sieveRunTemplates}/{datasetName}/{sieveRunTemplates}_{datasetName}.log",
-        config=SIEVEFROMCANDIDATEPHYINFDIR + "{sieveRunTemplates}/{datasetName}/{sieveRunTemplates}_{datasetName}" + config["configFiles"]["sieve"]["suffix"],
-        tree=SIEVEFROMCANDIDATEPHYINFDIR + "{sieveRunTemplates}/{datasetName}/{sieveRunTemplates}_{datasetName}.tree"
-    output: 
-        estimates=protected(SIEVEFROMCANDIDATEVARCALDIR + "{sieveRunTemplates}/{datasetName}/{sieveRunTemplates}_{datasetName}.estimates"),
-        files=protected(SIEVEFROMCANDIDATEVARCALDIR + "{sieveRunTemplates}/{datasetName}/files")
+    input:
+        mcmclog=SIEVEFROMCANDIDATEPHYINFDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplate}/{datasetName}/sieve.log",
+        config=SIEVEFROMCANDIDATEPHYINFDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplate}/{datasetName}/sieve" + config["configFiles"]["sieve"]["suffix"],
+        tree=SIEVEFROMCANDIDATEPHYINFDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplate}/{datasetName}/sieve.tree"
+    output:
+        estimates=protected(SIEVEFROMCANDIDATEVARCALDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplate}/{datasetName}/sieve.estimates"),
+        files=protected(SIEVEFROMCANDIDATEVARCALDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplate}/{datasetName}/files")
     params:
         variantCaller=config["tools"]["applauncher"] + " VariantCallerLauncher",
         burnIn=config["fineTune"]["variantCaller"]["burnIn"],
         estimates=config["fineTune"]["variantCaller"]["estimates"],
-        prefix=SIEVEFROMCANDIDATEVARCALDIR + "{sieveRunTemplates}/{datasetName}/"
+        prefix=SIEVEFROMCANDIDATEVARCALDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplate}/{datasetName}/"
     threads:
         config["fineTune"]["variantCaller"]["threads"]
-    shell: 
+    shell:
         "{params.variantCaller} "
         "-details "
         "-burnin {params.burnIn} "
@@ -135,14 +179,14 @@ rule runSieveWithCandidateSNVsVarCall:
 # Rule: update templates for stage 2 from results of stage 1
 rule updateStage2ConfigCandidateSNVsForSieve:
     input:
-        estimates=SIEVEFROMCANDIDATEVARCALDIR + "{sieveRunTemplatesStage1}/{datasetName}/{sieveRunTemplatesStage1}_{datasetName}.estimates",
-        files=SIEVEFROMCANDIDATEVARCALDIR + "{sieveRunTemplatesStage1}/{datasetName}/files",
-        simpleTree=SIEVEFROMCANDIDATEPHYINFDIR + "{sieveRunTemplatesStage1}/{datasetName}/{sieveRunTemplatesStage1}_{datasetName}_simple.tree"
+        estimates=SIEVEFROMCANDIDATEVARCALDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}/{datasetName}/sieve.estimates",
+        files=SIEVEFROMCANDIDATEVARCALDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}/{datasetName}/files",
+        simpleTree=SIEVEFROMCANDIDATEPHYINFDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}/{datasetName}/sieve_simple.tree"
     output:
-        protected(SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}/{datasetName}/stage2_template" + config["configFiles"]["sieve"]["suffix"])
+        protected(SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/stage2_template" + config["configFiles"]["sieve"]["suffix"])
     params:
-        template1=config["configFiles"]["sieve"]["dir"] + "{sieveRunTemplatesStage1}" + config["configFiles"]["sieve"]["suffix"],
-        template2=config["configFiles"]["sieve"]["dir"] + "{sieveRunTemplatesStage2}" + config["configFiles"]["sieve"]["suffix"]
+        template1=config["configFiles"]["sieve"]["dir"] + "{runTemplateStage1}" + config["configFiles"]["sieve"]["suffix"],
+        template2=config["configFiles"]["sieve"]["dir"] + "{runTemplateStage2}" + config["configFiles"]["sieve"]["suffix"]
     shell:
         "python scripts/set_up_stage2_from_stage1.py "
         "--tree {input.simpleTree} "
@@ -154,14 +198,14 @@ rule updateStage2ConfigCandidateSNVsForSieve:
 
 # Rule: integrate reads data from Sciphi candicate SNVs into templates for stage 2 for SIEVE
 rule integrateStage2CandidateSNVsForSieve:
-    input: 
-        data=SIEVEFROMCANDIDATEPHYINFDIR + "{sieveRunTemplatesStage1}/{datasetName}/readCounts.tsv",
-        template=SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}/{datasetName}/stage2_template" + config["configFiles"]["sieve"]["suffix"]
-    output: 
-        protected(SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}/{datasetName}/{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}_{datasetName}" + config["configFiles"]["sieve"]["suffix"])
+    input:
+        data=SIEVEFROMCANDIDATEPHYINFDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}/{datasetName}/readCounts.tsv",
+        template=SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/stage2_template" + config["configFiles"]["sieve"]["suffix"]
+    output:
+        protected(SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/sieve" + config["configFiles"]["sieve"]["suffix"])
     params:
         dataCollector=config["tools"]["applauncher"] + " DataCollectorLauncher",
-    shell: 
+    shell:
         "{params.dataCollector} "
         "-cell {SIMUTUMORCELLNAMES} "
         "-data {input.data} "
@@ -170,20 +214,31 @@ rule integrateStage2CandidateSNVsForSieve:
 
 # Rule: perfrom phylogenetic inference for stage 2 with SIEVE using Sciphi candicate SNVs
 rule runSieveWithCandidateSNVsPhyloInfStage2:
-    input: 
-        rawData=SIEVEFROMCANDIDATEPHYINFDIR + "{sieveRunTemplatesStage1}/{datasetName}/readCounts.tsv",
-        configuredData=SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}/{datasetName}/{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}_{datasetName}" + config["configFiles"]["sieve"]["suffix"]
-    output: 
-        trees=protected(SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}/{datasetName}/{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}_{datasetName}.trees"),
-        mcmclog=protected(SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}/{datasetName}/{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}_{datasetName}.log"),
-        state=protected(SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}/{datasetName}/{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}_{datasetName}" + config["configFiles"]["sieve"]["suffix"] + ".state")
+    input:
+        rawData=SIEVEFROMCANDIDATEPHYINFDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}/{datasetName}/readCounts.tsv",
+        configuredData=SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/sieve" + config["configFiles"]["sieve"]["suffix"]
+    output:
+        trees=protected(SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/sieve.trees"),
+        mcmclog=protected(SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/sieve.log"),
+        state=protected(SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/sieve" + config["configFiles"]["sieve"]["suffix"] + ".state")
     params:
         beast=config["tools"]["beast"],
-        seed=config["fineTune"]["beast"]["seed"],
-        prefix=SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}/{datasetName}/",
-        log=SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}/{datasetName}/out"
+        seed=lambda wildcards: get_dict_values(
+            config,
+            ["fineTune", "beast", wildcards.fineTuneTypeSieve, "seed"]
+        ),
+        prefix=SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/",
+        log=SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/out"
     threads:
-        lambda wildcards, input: get_thread_num_for_sieve(input.rawData, config["fineTune"]["beast"]["nrOfSitesPerThreadStage2"])
+        lambda wildcards, input: get_thread_num_for_sieve(
+            input.rawData,
+            get_dict_values(
+                config,
+                ["fineTune", "beast", wildcards.fineTuneTypeSieve, "nrOfSitesPerThreadStage2"]
+            )
+        )
+    benchmark:
+        repeat(EFFICIENCYSIEVEDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}.tsv", config["benchmark"]["efficiency"]["repetition"])
     shell:
         "{params.beast} "
         "-overwrite "
@@ -195,16 +250,16 @@ rule runSieveWithCandidateSNVsPhyloInfStage2:
 
 # Rule: perfrom tree annotation for stage 2 with SIEVE using Sciphi candicate SNVs
 rule runSieveWithCandidateSNVsTreeAnnotationStage2:
-    input: 
-        SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}/{datasetName}/{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}_{datasetName}.trees"
-    output: 
-        tree=protected(SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}/{datasetName}/{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}_{datasetName}.tree"),
-        simpleTree=protected(SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}/{datasetName}/{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}_{datasetName}_simple.tree")
+    input:
+        SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/sieve.trees"
+    output:
+        tree=protected(SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/sieve.tree"),
+        simpleTree=protected(SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/sieve_simple.tree")
     params:
         treeAnnotator=config["tools"]["applauncher"] + " ScsTreeAnnotatorLauncher",
         burnIn=config["fineTune"]["treeAnnotator"]["burnIn"],
-        log=SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}/{datasetName}/process_tree.out"
-    shell: 
+        log=SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/process_tree.out"
+    shell:
         "{params.treeAnnotator} "
         "-burnin {params.burnIn} "
         "-simpleTree "
@@ -214,20 +269,20 @@ rule runSieveWithCandidateSNVsTreeAnnotationStage2:
 
 # Rule: perfrom variant calling for stage 2 with SIEVE using Sciphi candicate SNVs
 rule runSieveWithCandidateSNVsVarCallStage2:
-    input: 
-        mcmclog=SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}/{datasetName}/{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}_{datasetName}.log",
-        config=SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}/{datasetName}/{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}_{datasetName}" + config["configFiles"]["sieve"]["suffix"],
-        tree=SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}/{datasetName}/{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}_{datasetName}.tree"
-    output: 
-        estimates=protected(SIEVEFROMCANDIDATEVARCALSTAGE2DIR + "{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}/{datasetName}/{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}_{datasetName}.estimates"),
-        files=protected(SIEVEFROMCANDIDATEVARCALSTAGE2DIR + "{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}/{datasetName}/stage2_files")
+    input:
+        mcmclog=SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/sieve.log",
+        config=SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/sieve" + config["configFiles"]["sieve"]["suffix"],
+        tree=SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/sieve.tree"
+    output:
+        estimates=protected(SIEVEFROMCANDIDATEVARCALSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/sieve.estimates"),
+        files=protected(SIEVEFROMCANDIDATEVARCALSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/stage2_files")
     params:
         variantCaller=config["tools"]["applauncher"] + " VariantCallerLauncher",
         burnIn=config["fineTune"]["variantCaller"]["burnIn"],
-        prefix=SIEVEFROMCANDIDATEVARCALSTAGE2DIR + "{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}/{datasetName}/"
+        prefix=SIEVEFROMCANDIDATEVARCALSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/"
     threads:
         config["fineTune"]["variantCaller"]["threads"]
-    shell: 
+    shell:
         "{params.variantCaller} "
         "-details "
         "-burnin {params.burnIn} "
@@ -248,19 +303,19 @@ rule runSieveWithCandidateSNVsVarCallStage2:
 # Rule: gather inferred trees from SIEVE with candidate SNVs
 rule gatherSieveTreesWithCandidateSNVs:
     input:
-        inferredTrees = expand(SIEVEFROMCANDIDATEPHYINFDIR + "{sieveRunTemplates}/{datasetName}/{sieveRunTemplates}_{datasetName}_simple.tree",
-                sieveRunTemplates=config["configFiles"]["sieve"]["fileNames"], datasetName=SIMUDATASETNAMES),
-        trueTrees = expand(SIMUCONVERTEDTRUETREEDIR + config["benchmark"]["simulation"]["treesWithTrunkWithoutNormalDir"] + config["benchmark"]["simulation"]["treesPre"] + ".{datasetName}", datasetName=SIMUDATASETNAMES)
+        inferredTrees=expand(SIEVEFROMCANDIDATEPHYINFDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplate}/{datasetName}/sieve_simple.tree", fineTuneTypeSieve=FINETUNETYPESSIEVE, dataType=SIMUDATATYPES, runTemplate=TEMPLATES, datasetName=SIMUDATASETNAMES),
+        trueTrees=expand(SIMUCONVERTEDTRUETREEDIR + config["benchmark"]["simulation"]["treesWithTrunkWithoutNormalDir"] + config["benchmark"]["simulation"]["treesPre"] + ".{datasetName}", datasetName=SIMUDATASETNAMES)
     output:
-        ANALYSISTREECOMPDIR + "from_sieve_" + config["benchmark"]["analysis"]["candidateSNVs"] + ".tsv"
+        protected(ANALYSISTREECOMPDIR + "from_sieve_" + config["benchmark"]["analysis"]["candidateSNVs"] + ".tsv")
     params:
-        forSieve=True,
-        sieveRunTemplates=config["configFiles"]["sieve"]["fileNames"],
         datasetNames=SIMUDATASETNAMES,
         trueTreesDir=SIMUCONVERTEDTRUETREEDIR + config["benchmark"]["simulation"]["treesWithTrunkWithoutNormalDir"],
         trueTreesPre=config["benchmark"]["simulation"]["treesPre"],
         tool="sieve",
         snvType=config["benchmark"]["analysis"]["candidateSNVs"],
+        toolSetup=TEMPLATES,
+        fineTuneType=FINETUNETYPESSIEVE,
+        dataType=SIMUDATATYPES,
         cellNum=config["benchmark"]["analysis"]["cellNum"],
         covMean=config["benchmark"]["analysis"]["covMean"],
         covVariance=config["benchmark"]["analysis"]["covVariance"],
@@ -268,29 +323,25 @@ rule gatherSieveTreesWithCandidateSNVs:
         adoRate=config["benchmark"]["analysis"]["adoRate"],
         deletionRate=config["benchmark"]["analysis"]["deletionRate"],
         insertionRate=config["benchmark"]["analysis"]["insertionRate"]
-    conda:
-        "scripts/envs/pandas.yaml"
     script:
         "scripts/gather_inferred_trees_part.py"
 
 # Rule: gather inferred trees from SIEVE stage 2 with candidate SNVs
 rule gatherSieveStage2TreesWithCandidateSNVs:
     input:
-        inferredTrees = expand(SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}/{datasetName}/{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}_{datasetName}_simple.tree",
-                sieveRunTemplatesStage1=config["configFiles"]["sieve"]["stage1FileNames"], 
-                sieveRunTemplatesStage2=config["configFiles"]["sieve"]["stage2FileNames"], 
-                datasetName=SIMUDATASETNAMES),
-        trueTrees = expand(SIMUCONVERTEDTRUETREEDIR + config["benchmark"]["simulation"]["treesWithTrunkWithoutNormalDir"] + config["benchmark"]["simulation"]["treesPre"] + ".{datasetName}", datasetName=SIMUDATASETNAMES)
+        inferredTrees=expand(SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/sieve_simple.tree", fineTuneTypeSieve=FINETUNETYPESSIEVE, dataType=SIMUDATATYPES, runTemplateStage1=STAGE_1_TEMPLATES, runTemplateStage2=STAGE_2_TEMPLATES, datasetName=SIMUDATASETNAMES),
+        trueTrees=expand(SIMUCONVERTEDTRUETREEDIR + config["benchmark"]["simulation"]["treesWithTrunkWithoutNormalDir"] + config["benchmark"]["simulation"]["treesPre"] + ".{datasetName}", datasetName=SIMUDATASETNAMES)
     output:
-        ANALYSISTREECOMPDIR + "from_sieve_stage2_" + config["benchmark"]["analysis"]["candidateSNVs"] + ".tsv"
+        protected(ANALYSISTREECOMPDIR + "from_sieve_stage2_" + config["benchmark"]["analysis"]["candidateSNVs"] + ".tsv")
     params:
-        forSieve=True,
-        sieveRunTemplates=expand("{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}", sieveRunTemplatesStage1=config["configFiles"]["sieve"]["stage1FileNames"], sieveRunTemplatesStage2=config["configFiles"]["sieve"]["stage2FileNames"]),
         datasetNames=SIMUDATASETNAMES,
         trueTreesDir=SIMUCONVERTEDTRUETREEDIR + config["benchmark"]["simulation"]["treesWithTrunkWithoutNormalDir"],
         trueTreesPre=config["benchmark"]["simulation"]["treesPre"],
         tool="sieve",
         snvType=config["benchmark"]["analysis"]["candidateSNVs"],
+        toolSetup=expand("{runTemplateStage1}-{runTemplateStage2}", runTemplateStage1=STAGE_1_TEMPLATES, runTemplateStage2=STAGE_2_TEMPLATES),
+        fineTuneType=FINETUNETYPESSIEVE,
+        dataType=SIMUDATATYPES,
         cellNum=config["benchmark"]["analysis"]["cellNum"],
         covMean=config["benchmark"]["analysis"]["covMean"],
         covVariance=config["benchmark"]["analysis"]["covVariance"],
@@ -298,8 +349,6 @@ rule gatherSieveStage2TreesWithCandidateSNVs:
         adoRate=config["benchmark"]["analysis"]["adoRate"],
         deletionRate=config["benchmark"]["analysis"]["deletionRate"],
         insertionRate=config["benchmark"]["analysis"]["insertionRate"]
-    conda:
-        "scripts/envs/pandas.yaml"
     script:
         "scripts/gather_inferred_trees_part.py"
 
@@ -310,44 +359,41 @@ rule gatherSieveStage2TreesWithCandidateSNVs:
 
 # Rule: get parameter estimates from SIEVE with candidate SNVs
 rule getSieveParamsWithCandidateSNVs:
-    input: 
-        expand(SIEVEFROMCANDIDATEVARCALDIR + "{sieveRunTemplates}/{datasetName}/{sieveRunTemplates}_{datasetName}.estimates", sieveRunTemplates=config["configFiles"]["sieve"]["fileNames"], datasetName=SIMUDATASETNAMES)
-    output: 
-        ANALYSISPARAMSDIR + "from_sieve_" + config["benchmark"]["analysis"]["candidateSNVs"] + ".tsv"
+    input:
+        expand(SIEVEFROMCANDIDATEVARCALDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplate}/{datasetName}/sieve.estimates", fineTuneTypeSieve=FINETUNETYPESSIEVE, dataType=SIMUDATATYPES, runTemplate=TEMPLATES, datasetName=SIMUDATASETNAMES)
+    output:
+        protected(ANALYSISPARAMSDIR + "from_sieve_" + config["benchmark"]["analysis"]["candidateSNVs"] + ".tsv")
     params:
         cellNum=config["benchmark"]["analysis"]["cellNum"],
         covMean=config["benchmark"]["analysis"]["covMean"],
         covVariance=config["benchmark"]["analysis"]["covVariance"],
-        configTemplates=config["configFiles"]["sieve"]["fileNames"],
+        toolSetup=TEMPLATES,
         datasetNames=SIMUDATASETNAMES,
         tool="sieve",
         snvType=config["benchmark"]["analysis"]["candidateSNVs"],
+        fineTuneType=FINETUNETYPESSIEVE,
+        dataType=SIMUDATATYPES,
         estimatesType=config["fineTune"]["variantCaller"]["estimates"]
-    conda:
-        "scripts/envs/pandas.yaml"
     script:
         "scripts/get_param_estimates_sieve.py"
 
 # Rule: get parameter estimates from SIEVE stage 2 with candidate SNVs
 rule getSieveStage2ParamsWithCandidateSNVs:
     input: 
-        expand(SIEVEFROMCANDIDATEVARCALSTAGE2DIR + "{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}/{datasetName}/{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}_{datasetName}.estimates",
-                sieveRunTemplatesStage1=config["configFiles"]["sieve"]["stage1FileNames"], 
-                sieveRunTemplatesStage2=config["configFiles"]["sieve"]["stage2FileNames"], 
-                datasetName=SIMUDATASETNAMES)
+        expand(SIEVEFROMCANDIDATEVARCALSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/sieve.estimates", fineTuneTypeSieve=FINETUNETYPESSIEVE, dataType=SIMUDATATYPES, runTemplateStage1=STAGE_1_TEMPLATES, runTemplateStage2=STAGE_2_TEMPLATES, datasetName=SIMUDATASETNAMES)
     output: 
-        ANALYSISPARAMSDIR + "from_sieve_stage2_" + config["benchmark"]["analysis"]["candidateSNVs"] + ".tsv"
+        protected(ANALYSISPARAMSDIR + "from_sieve_stage2_" + config["benchmark"]["analysis"]["candidateSNVs"] + ".tsv")
     params:
         cellNum=config["benchmark"]["analysis"]["cellNum"],
         covMean=config["benchmark"]["analysis"]["covMean"],
         covVariance=config["benchmark"]["analysis"]["covVariance"],
-        configTemplates=expand("{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}", sieveRunTemplatesStage1=config["configFiles"]["sieve"]["stage1FileNames"], sieveRunTemplatesStage2=config["configFiles"]["sieve"]["stage2FileNames"]),
+        toolSetup=expand("{runTemplateStage1}-{runTemplateStage2}", runTemplateStage1=STAGE_1_TEMPLATES, runTemplateStage2=STAGE_2_TEMPLATES),
         datasetNames=SIMUDATASETNAMES,
         tool="sieve",
         snvType=config["benchmark"]["analysis"]["candidateSNVs"],
+        fineTuneType=FINETUNETYPESSIEVE,
+        dataType=SIMUDATATYPES,
         estimatesType=config["fineTune"]["variantCaller"]["estimates"]
-    conda:
-        "scripts/envs/pandas.yaml"
     script:
         "scripts/get_param_estimates_sieve.py"
 
@@ -359,20 +405,22 @@ rule getSieveStage2ParamsWithCandidateSNVs:
 # Rule: gather variant calling results from SIEVE with candidate SNVs
 rule gatherSieveVarResultsCandidateSNVs:
     input: 
-        expand(SIEVEFROMCANDIDATEVARCALDIR + "{sieveRunTemplates}/{datasetName}/files", sieveRunTemplates=config["configFiles"]["sieve"]["fileNames"], datasetName=SIMUDATASETNAMES)
+        allFiles=expand(SIEVEFROMCANDIDATEVARCALDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplate}/{datasetName}/files", fineTuneTypeSieve=FINETUNETYPESSIEVE, dataType=SIMUDATATYPES, runTemplate=TEMPLATES, datasetName=SIMUDATASETNAMES),
+        trueCellNames=SIMUTUMORCELLNAMES,
+        trueSNVSites=expand(SIMUDATATYPESDIR + "{dataType}/{datasetName}/" + config["benchmark"]["simulation"]["trueSNVSitesNamesPre"], dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES),
+        trueSNVGenotypesNU=expand(SIMUDATATYPESDIR + "{dataType}/{datasetName}/" + config["benchmark"]["simulation"]["trueSNVGenotypesNUPre"], dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES),
+        trueSNVGenotypesTer=expand(SIMUDATATYPESDIR + "{dataType}/{datasetName}/" + config["benchmark"]["simulation"]["trueSNVGenotypesTerPre"] + '.simple', dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES)
     output: 
-        ANALYSISVARCALLDIR + "from_sieve_" + config["benchmark"]["analysis"]["candidateSNVs"] + ".tsv"
+        protected(ANALYSISVARCALLDIR + "from_sieve_" + config["benchmark"]["analysis"]["candidateSNVs"] + ".tsv")
     params:
         forSieve=True,
         mergedDuplicateLines=False,
-        sieveRunTemplates=config["configFiles"]["sieve"]["fileNames"],
         datasetNames=SIMUDATASETNAMES,
         tool="sieve",
         snvType=config["benchmark"]["analysis"]["candidateSNVs"],
-        trueCellNames=SIMUTUMORCELLNAMES,
-        trueLociInfoPre=SIMUSNVSITESDIR + config["benchmark"]["simulation"]["trueSNVSitesNamesPre"],
-        trueGenotypesNUPre=SIMUTRUESNVDIR + config["benchmark"]["simulation"]["trueSNVGenotypesNUPre"],
-        trueGenotypesTerPre=SIMUTRUESNVDIR + config["benchmark"]["simulation"]["trueSNVGenotypesTerPre"],
+        toolSetup=TEMPLATES,
+        fineTuneType=FINETUNETYPESSIEVE,
+        dataType=SIMUDATATYPES,
         cellNum=config["benchmark"]["analysis"]["cellNum"],
         covMean=config["benchmark"]["analysis"]["covMean"],
         covVariance=config["benchmark"]["analysis"]["covVariance"],
@@ -380,31 +428,28 @@ rule gatherSieveVarResultsCandidateSNVs:
         adoRate=config["benchmark"]["analysis"]["adoRate"],
         deletionRate=config["benchmark"]["analysis"]["deletionRate"],
         insertionRate=config["benchmark"]["analysis"]["insertionRate"]
-    conda:
-        "scripts/envs/pandas.yaml"
     script:
         "scripts/gather_variant_calling_results_part.py"
 
 # Rule: gather variant calling results from SIEVE stage 2 with candidate SNVs
 rule gatherSieveStage2VarResultsCandidateSNVs:
     input: 
-        expand(SIEVEFROMCANDIDATEVARCALSTAGE2DIR + "{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}/{datasetName}/stage2_files",
-                sieveRunTemplatesStage1=config["configFiles"]["sieve"]["stage1FileNames"], 
-                sieveRunTemplatesStage2=config["configFiles"]["sieve"]["stage2FileNames"], 
-                datasetName=SIMUDATASETNAMES)
+        allFiles=expand(SIEVEFROMCANDIDATEVARCALSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/stage2_files", fineTuneTypeSieve=FINETUNETYPESSIEVE, dataType=SIMUDATATYPES, runTemplateStage1=STAGE_1_TEMPLATES, runTemplateStage2=STAGE_2_TEMPLATES, datasetName=SIMUDATASETNAMES),
+        trueCellNames=SIMUTUMORCELLNAMES,
+        trueSNVSites=expand(SIMUDATATYPESDIR + "{dataType}/{datasetName}/" + config["benchmark"]["simulation"]["trueSNVSitesNamesPre"], dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES),
+        trueSNVGenotypesNU=expand(SIMUDATATYPESDIR + "{dataType}/{datasetName}/" + config["benchmark"]["simulation"]["trueSNVGenotypesNUPre"], dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES),
+        trueSNVGenotypesTer=expand(SIMUDATATYPESDIR + "{dataType}/{datasetName}/" + config["benchmark"]["simulation"]["trueSNVGenotypesTerPre"] + '.simple', dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES)
     output: 
-        ANALYSISVARCALLDIR + "from_sieve_stage2_" + config["benchmark"]["analysis"]["candidateSNVs"] + ".tsv"
+        protected(ANALYSISVARCALLDIR + "from_sieve_stage2_" + config["benchmark"]["analysis"]["candidateSNVs"] + ".tsv")
     params:
         forSieve=True,
         mergedDuplicateLines=False,
-        sieveRunTemplates=expand("{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}", sieveRunTemplatesStage1=config["configFiles"]["sieve"]["stage1FileNames"], sieveRunTemplatesStage2=config["configFiles"]["sieve"]["stage2FileNames"]),
         datasetNames=SIMUDATASETNAMES,
         tool="sieve",
         snvType=config["benchmark"]["analysis"]["candidateSNVs"],
-        trueCellNames=SIMUTUMORCELLNAMES,
-        trueLociInfoPre=SIMUSNVSITESDIR + config["benchmark"]["simulation"]["trueSNVSitesNamesPre"],
-        trueGenotypesNUPre=SIMUTRUESNVDIR + config["benchmark"]["simulation"]["trueSNVGenotypesNUPre"],
-        trueGenotypesTerPre=SIMUTRUESNVDIR + config["benchmark"]["simulation"]["trueSNVGenotypesTerPre"],
+        toolSetup=expand("{runTemplateStage1}-{runTemplateStage2}", runTemplateStage1=STAGE_1_TEMPLATES, runTemplateStage2=STAGE_2_TEMPLATES),
+        fineTuneType=FINETUNETYPESSIEVE,
+        dataType=SIMUDATATYPES,
         cellNum=config["benchmark"]["analysis"]["cellNum"],
         covMean=config["benchmark"]["analysis"]["covMean"],
         covVariance=config["benchmark"]["analysis"]["covVariance"],
@@ -412,8 +457,6 @@ rule gatherSieveStage2VarResultsCandidateSNVs:
         adoRate=config["benchmark"]["analysis"]["adoRate"],
         deletionRate=config["benchmark"]["analysis"]["deletionRate"],
         insertionRate=config["benchmark"]["analysis"]["insertionRate"]
-    conda:
-        "scripts/envs/pandas.yaml"
     script:
         "scripts/gather_variant_calling_results_part.py"
 
@@ -424,16 +467,18 @@ rule gatherSieveStage2VarResultsCandidateSNVs:
 
 # Rule: gather ADO calling results from SIEVE with candidate SNVs
 rule gatherSieveAdoResultsCandidateSNVs:
-    input: 
-        expand(SIEVEFROMCANDIDATEVARCALDIR + "{sieveRunTemplates}/{datasetName}/files", sieveRunTemplates=config["configFiles"]["sieve"]["fileNames"], datasetName=SIMUDATASETNAMES)
+    input:
+        allFiles=expand(SIEVEFROMCANDIDATEVARCALDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplate}/{datasetName}/files", fineTuneTypeSieve=FINETUNETYPESSIEVE, dataType=SIMUDATATYPES, runTemplate=TEMPLATES, datasetName=SIMUDATASETNAMES),
+        trueCellNames=SIMUTUMORCELLNAMES
     output: 
         protected(ANALYSISADOCALLDIR + "from_sieve_" + config["benchmark"]["analysis"]["candidateSNVs"] + ".tsv")
     params:
-        sieveRunTemplates=config["configFiles"]["sieve"]["fileNames"],
         datasetNames=SIMUDATASETNAMES,
         tool="sieve",
         snvType=config["benchmark"]["analysis"]["candidateSNVs"],
-        trueCellNames=SIMUTUMORCELLNAMES,
+        toolSetup=TEMPLATES,
+        fineTuneType=FINETUNETYPESSIEVE,
+        dataType=SIMUDATATYPES,
         trueAdoStatesPre=SIMUTRUEADOSTATESDIR + config["benchmark"]["simulation"]["trueAdoStatesPre"],
         cellNum=config["benchmark"]["analysis"]["cellNum"],
         covMean=config["benchmark"]["analysis"]["covMean"],
@@ -442,26 +487,23 @@ rule gatherSieveAdoResultsCandidateSNVs:
         adoRate=config["benchmark"]["analysis"]["adoRate"],
         deletionRate=config["benchmark"]["analysis"]["deletionRate"],
         insertionRate=config["benchmark"]["analysis"]["insertionRate"]
-    conda:
-        "scripts/envs/pandas.yaml"
     script:
         "scripts/gather_ado_calling_results_part.py"
 
 # Rule: gather ADO calling results from SIEVE stage 2 with candidate SNVs
 rule gatherSieveStage2AdoResultsCandidateSNVs:
     input: 
-        expand(SIEVEFROMCANDIDATEVARCALSTAGE2DIR + "{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}/{datasetName}/stage2_files",
-                sieveRunTemplatesStage1=config["configFiles"]["sieve"]["stage1FileNames"], 
-                sieveRunTemplatesStage2=config["configFiles"]["sieve"]["stage2FileNames"], 
-                datasetName=SIMUDATASETNAMES)
+        allFiles=expand(SIEVEFROMCANDIDATEVARCALSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/stage2_files", fineTuneTypeSieve=FINETUNETYPESSIEVE, dataType=SIMUDATATYPES, runTemplateStage1=STAGE_1_TEMPLATES, runTemplateStage2=STAGE_2_TEMPLATES, datasetName=SIMUDATASETNAMES),
+        trueCellNames=SIMUTUMORCELLNAMES
     output: 
         protected(ANALYSISADOCALLDIR + "from_sieve_stage2_" + config["benchmark"]["analysis"]["candidateSNVs"] + ".tsv")
     params:
-        sieveRunTemplates=expand("{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}", sieveRunTemplatesStage1=config["configFiles"]["sieve"]["stage1FileNames"], sieveRunTemplatesStage2=config["configFiles"]["sieve"]["stage2FileNames"]),
         datasetNames=SIMUDATASETNAMES,
         tool="sieve",
         snvType=config["benchmark"]["analysis"]["candidateSNVs"],
-        trueCellNames=SIMUTUMORCELLNAMES,
+        toolSetup=expand("{runTemplateStage1}-{runTemplateStage2}", runTemplateStage1=STAGE_1_TEMPLATES, runTemplateStage2=STAGE_2_TEMPLATES),
+        fineTuneType=FINETUNETYPESSIEVE,
+        dataType=SIMUDATATYPES,
         trueAdoStatesPre=SIMUTRUEADOSTATESDIR + config["benchmark"]["simulation"]["trueAdoStatesPre"],
         cellNum=config["benchmark"]["analysis"]["cellNum"],
         covMean=config["benchmark"]["analysis"]["covMean"],
@@ -470,8 +512,6 @@ rule gatherSieveStage2AdoResultsCandidateSNVs:
         adoRate=config["benchmark"]["analysis"]["adoRate"],
         deletionRate=config["benchmark"]["analysis"]["deletionRate"],
         insertionRate=config["benchmark"]["analysis"]["insertionRate"]
-    conda:
-        "scripts/envs/pandas.yaml"
     script:
         "scripts/gather_ado_calling_results_part.py"
 
@@ -480,16 +520,28 @@ rule gatherSieveStage2AdoResultsCandidateSNVs:
 #        Gather the number of sites from SIEVE        #
 #######################################################
 
-rule gatherSitesInfoSieve:
+# Rule: gather the number of candidate variant sites as input to SIEVE
+rule gatherSieveSitesInfo:
     input:
-        data=expand(SIEVEFROMCANDIDATEPHYINFDIR + "{sieveRunTemplatesStage1}/{datasetName}/readCounts.tsv", sieveRunTemplatesStage1=config["configFiles"]["sieve"]["stage1FileNames"], datasetName=SIMUDATASETNAMES),
-        treeInfo=ANALYSISTREECOMPDIR + "trees_info_updated.tsv"
+        expand(SIEVEFROMCANDIDATEPHYINFDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}/{datasetName}/readCounts.tsv", fineTuneTypeSieve=FINETUNETYPESSIEVE, dataType=SIMUDATATYPES, runTemplateStage1=STAGE_1_TEMPLATES, datasetName=SIMUDATASETNAMES)
     output:
-        protected(ANALYSISTREECOMPDIR + "sieve_sites_info.tsv")
-    conda:
-        "scripts/envs/pandas.yaml"
+        protected(ANALYSISSITESINFODIR + "from_sieve_" + config["benchmark"]["analysis"]["candidateSNVs"] + ".tsv")
+    params:
+        datasetNames=SIMUDATASETNAMES,
+        tool="sieve",
+        snvType=config["benchmark"]["analysis"]["candidateSNVs"],
+        toolSetup=STAGE_1_TEMPLATES,
+        fineTuneType=FINETUNETYPESSIEVE,
+        dataType=SIMUDATATYPES,
+        cellNum=config["benchmark"]["analysis"]["cellNum"],
+        covMean=config["benchmark"]["analysis"]["covMean"],
+        covVariance=config["benchmark"]["analysis"]["covVariance"],
+        effSeqErrRate=config["benchmark"]["analysis"]["effSeqErrRate"],
+        adoRate=config["benchmark"]["analysis"]["adoRate"],
+        deletionRate=config["benchmark"]["analysis"]["deletionRate"],
+        insertionRate=config["benchmark"]["analysis"]["insertionRate"]
     script:
-        "scripts/gather_sites_info.py"
+        "scripts/gather_sites_info_sieve.py"
 
 
 ########################################################
@@ -504,13 +556,15 @@ rule generateAllelicInfoPerCell:
         cellNames=SIMUTUMORCELLNAMES,
         trueSizeFactors=SIMUTRUESIZEFACTORSDIR + config["benchmark"]["simulation"]["trueSizeFactorsPre"] + ".{datasetName}",
         trueAllelicSeqInfo=SIMUALLELICSEQINFODIR + config["benchmark"]["simulation"]["trueAllelicSeqInfoSNVsPre"] + ".{datasetName}",
-        sieveVarCallFiles=SIEVEFROMCANDIDATEVARCALSTAGE2DIR + "{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}/{datasetName}/stage2_files"
+        sieveVarCallFiles=SIEVEFROMCANDIDATEVARCALSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/stage2_files"
     output:
-        protected(SIEVEFROMCANDIDATEVARCALSTAGE2DIR + "{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}/{datasetName}/allelic_info.rds")
+        protected(SIEVEFROMCANDIDATEVARCALSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/allelic_info.rds")
     params:
         tool="sieve",
-        sieveRunTemplate=lambda wildcards: "{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}".format(sieveRunTemplatesStage1=wildcards.sieveRunTemplatesStage1, sieveRunTemplatesStage2=wildcards.sieveRunTemplatesStage2),
+        toolSetup=lambda wildcards: "{runTemplateStage1}-{runTemplateStage2}".format(runTemplateStage1=wildcards.runTemplateStage1, runTemplateStage2=wildcards.runTemplateStage2),
         datasetLabel=lambda wildcards: "{datasetName}".format(datasetName=wildcards.datasetName),
+        fineTuneType=lambda wildcards: "{fineTuneTypeSieve}".format(fineTuneTypeSieve=wildcards.fineTuneTypeSieve),
+        dataType=lambda wildcards: "{dataType}".format(dataType=wildcards.dataType),
         cellNum=config["benchmark"]["analysis"]["cellNum"],
         covMean=config["benchmark"]["analysis"]["covMean"],
         covVariance=config["benchmark"]["analysis"]["covVariance"],
@@ -524,10 +578,7 @@ rule generateAllelicInfoPerCell:
 # Rule: combine allelic information per cell from all datasets
 rule combineAllelicInfoPerCell:
     input:
-        expand(SIEVEFROMCANDIDATEVARCALSTAGE2DIR + "{sieveRunTemplatesStage1}-{sieveRunTemplatesStage2}/{datasetName}/allelic_info.rds",
-                sieveRunTemplatesStage1=config["configFiles"]["sieve"]["stage1FileNames"], 
-                sieveRunTemplatesStage2=config["configFiles"]["sieve"]["stage2FileNames"], 
-                datasetName=SIMUDATASETNAMES)
+        expand(SIEVEFROMCANDIDATEVARCALSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/allelic_info.rds", fineTuneTypeSieve=FINETUNETYPESSIEVE, dataType=SIMUDATATYPES, runTemplateStage1=STAGE_1_TEMPLATES, runTemplateStage2=STAGE_2_TEMPLATES, datasetName=SIMUDATASETNAMES)
     output:
         protected(ANALYSISALLELICINFO + "allelic_info.rds")
     script:

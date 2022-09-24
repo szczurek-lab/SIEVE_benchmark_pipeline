@@ -1,33 +1,43 @@
 import argparse
 import os
 import sys
-from typing import List, Dict, Tuple, Optional
+from typing import Optional
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from scripts import tree_str
 
 
-def parse_system_args() -> Tuple[argparse.Namespace, Dict[str, str]]:
+def parse_system_args() -> tuple[argparse.Namespace, dict[str, str]]:
     sys_args_parser = argparse.ArgumentParser(description='Convert gv trees to nexus format.')
-    sys_args_parser.add_argument('input', nargs='+', help='one or more files of gv format')
-    sys_args_parser.add_argument('--leafNames', required=True, type=str,
-                                 help='a list of leaf names used to generate gv files')
-    sys_args_parser.add_argument('--output', type=str, help='output file or directory. If only one input '
-                                                            'tree is provided, an output file or directory '
-                                                            'can be specified. If more than one input trees '
-                                                            'are provided, this option should not be '
-                                                            'specified as the out put files will be placed '
-                                                            'with each input tree.')
-    sys_args_parser.add_argument('--len', type=float, default=0.1, help='branch length of each node on the '
-                                                                        'output tree.')
-    sys_args_parser.add_argument('--startIndex', type=int, default=-1, help='the starting index to leaf '
-                                                                            'nodes in the gv file (must '
-                                                                            'consecutively be leaf nodes '
-                                                                            'from this index). If not '
-                                                                            'provided, the programme will try '
-                                                                            'to parse it from the input '
-                                                                            'file.')
+    sys_args_parser.add_argument(
+        'input',
+        nargs='+',
+        help='one or more files of gv format'
+    )
+    sys_args_parser.add_argument(
+        '--leafNames',
+        required=True,
+        type=str,
+        help='a list of leaf names used to generate gv files'
+    )
+    sys_args_parser.add_argument(
+        '--output',
+        type=str,
+        help='output file or directory. If only one input tree is provided, an output file or directory can be specified. If more than one input trees are provided, this option should not be specified as the out put files will be placed with each input tree.'
+    )
+    sys_args_parser.add_argument(
+        '--len',
+        type=float,
+        default=0.1,
+        help='branch length of each node on the output tree.'
+    )
+    sys_args_parser.add_argument(
+        '--startIndex',
+        type=int,
+        default=-1,
+        help='the starting index to leaf nodes in the gv file (must consecutively be leaf nodes from this index). If not provided, the programme will try to parse it from the input file.'
+    )
     sys_args = sys_args_parser.parse_args()
     if len(sys_args.input) > 1 and sys_args.output is not None:
         raise ValueError('Error! --out should not be defined as more than one input trees are provided.')
@@ -37,7 +47,7 @@ def parse_system_args() -> Tuple[argparse.Namespace, Dict[str, str]]:
         exit(1)
 
 
-def get_leaf_names(leaf_names_file: str) -> List[str]:
+def get_leaf_names(leaf_names_file: str) -> list[str]:
     leaf_names = []
     with open(leaf_names_file, 'r') as fh:
         for line in fh:
@@ -65,13 +75,17 @@ def get_base_name(file_name: str) -> str:
         return '.'.join(os.path.basename(file_name).split('.')[0:-1])
 
 
-def prepare_output_tree_files(input_tree_files: List[str], output: str = None) -> Dict[str, str]:
+def prepare_output_tree_files(input_tree_files: list[str], output: str = None) -> dict[str, str]:
     input2output = {}
     for input_tree_file in input_tree_files:
         if os.path.isfile(input_tree_file):
             if output is None:
-                input2output[input_tree_file] = '/'.join([get_root_path(input_tree_file),
-                                                          get_base_name(input_tree_file) + '.nexus'])
+                input2output[input_tree_file] = '/'.join(
+                    [
+                        get_root_path(input_tree_file),
+                        get_base_name(input_tree_file) + '.nexus'
+                    ]
+                )
             else:
                 if os.path.exists(output):
                     if os.path.isfile(output):
@@ -86,7 +100,7 @@ def prepare_output_tree_files(input_tree_files: List[str], output: str = None) -
     return input2output
 
 
-def get_index_and_label(line: str) -> Tuple[int, int]:
+def get_index_and_label(line: str) -> tuple[int, int]:
     start = end = -1
     for i in range(0, len(line)):
         if line[i] == '[':
@@ -106,7 +120,7 @@ def get_index_and_label(line: str) -> Tuple[int, int]:
             return int(line[:start - 1]), int(str_list[1].strip().strip('"'))
 
 
-def get_parent_child(line: str) -> Tuple[int, int]:
+def get_parent_child(line: str) -> tuple[int, int]:
     str_parent_child = line.split('->')
     if len(str_parent_child) != 2:
         raise IOError(
@@ -115,7 +129,7 @@ def get_parent_child(line: str) -> Tuple[int, int]:
         return int(str_parent_child[0].strip()), int(str_parent_child[1].strip())
 
 
-def get_extra_info(line: str) -> Optional[Tuple[str, str]]:
+def get_extra_info(line: str) -> Optional[tuple[str, str]]:
     start = end = -1
     for i in range(0, len(line)):
         if line[i] == '[':
@@ -131,11 +145,11 @@ def get_extra_info(line: str) -> Optional[Tuple[str, str]]:
             return str_list[0].strip(), str_list[1].strip()
 
 
-def read_trees(input_tree_files: List[str],
+def read_trees(input_tree_files: list[str],
                branch_length: float,
                start_index: int,
-               input_leaf_names: List[str]
-               ) -> Dict[str, tree_str.Tree]:
+               input_leaf_names: list[str]
+               ) -> dict[str, tree_str.Tree]:
     _double_check = False
     if start_index == -1:
         start_index = len(input_leaf_names) - 1

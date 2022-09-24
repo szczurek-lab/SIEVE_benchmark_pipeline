@@ -1,7 +1,6 @@
 import argparse
 import os
 import re
-from typing import Dict, List, Tuple
 
 
 CELL_NAME = 'tumcell'
@@ -28,9 +27,9 @@ def parse_sys_args() -> argparse.Namespace:
     return sys_args
 
 
-def build_cell_map(tree_file_name: str, ref_file_name: str) -> Tuple[Dict[str,str], str] :
+def build_cell_map(tree_file_name: str, ref_file_name: str) -> tuple[dict[str,str], str] :
     tree_content: str = ''
-    ref_cell_names: List[str] = []
+    ref_cell_names: list[str] = []
 
     with open(tree_file_name, 'r') as fh:
         for line in fh:
@@ -70,7 +69,7 @@ def build_cell_map(tree_file_name: str, ref_file_name: str) -> Tuple[Dict[str,st
     return tree_cell_2_ref, tree_content
 
 
-def replace_cell_names(cell_map: Dict[str, str], tree: str) -> str:
+def replace_cell_names(cell_map: dict[str, str], tree: str) -> str:
     for tree_cell, ref in cell_map.items():
         tree = tree.replace(tree_cell, ref)
     return tree

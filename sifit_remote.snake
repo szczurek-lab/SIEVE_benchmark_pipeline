@@ -1,13 +1,24 @@
-import shutil
+"""
+Explanation of wildcards:
+
+dataType: input data types, e.g., no CNVs, including CNVs, excluding CNVs, etc.
+datasetName: simulated dataset names, e.g., 0001, 0002, 0003...
+"""
+
 
 include: "scripts/constants.py"
 include: "scripts/utils.py"
 
+
 #########################################################
-#              Get simulated dataset names              #
+#              Get categories of wildcards              #
 #########################################################
 
 SIMUDATASETNAMES = get_dataset_names(SIMUSNVSITESDIR)
+SIMUDATATYPES = get_data_types(
+    config["benchmark"]["simulatedDataTypes"],
+    config["benchmark"]["simulation"]["dataTypes"]["CNVTypes"]
+)
 
 
 ########################################################
@@ -67,23 +78,23 @@ rule prepareGit4SifitWithTrueMonovarSNVs:
 # Rule: copy data files to results folder of Sifit
 rule copySifitDataWithTrueMonovarSNVs:
     input:
-        data=MONOVARTRUEPARAMSDIR + "{datasetName}/post_processed/filtered.sifit_data",
-        cellNames=MONOVARTRUEPARAMSDIR + "{datasetName}/post_processed/filtered.sifit_cell_names"
+        data=MONOVARTRUEPARAMSDIR + "{dataType}/{datasetName}/post_processed/filtered.sifit_data",
+        cellNames=MONOVARTRUEPARAMSDIR + "{dataType}/{datasetName}/post_processed/filtered.sifit_cell_names"
     output:
-        data=protected(SIFITTRUEMONOVARSNVSTRUEPARAMSLOCALDIR + "{datasetName}/data"),
-        cellNames=protected(SIFITTRUEMONOVARSNVSTRUEPARAMSLOCALDIR + "{datasetName}/cell_names")
+        data=protected(SIFITTRUEMONOVARSNVSTRUEPARAMSLOCALDIR + "{dataType}/{datasetName}/data"),
+        cellNames=protected(SIFITTRUEMONOVARSNVSTRUEPARAMSLOCALDIR + "{dataType}/{datasetName}/cell_names")
     priority:
         100
     shell:
-        "cp {input.cellNames} {output.cellNames}; "
-        "cp {input.data} {output.data}"
+        "cp -f {input.cellNames} {output.cellNames}; "
+        "cp -f {input.data} {output.data}"
 
 # Rule: push commits in git
 rule pushSifitDataWithTrueMonovarSNVs:
     input:
         flagFile=SIFITLOCALFLAGFILETRUEMONOVARINITSKELETONOUT,
-        dataFiles=expand(SIFITTRUEMONOVARSNVSTRUEPARAMSLOCALDIR + "{datasetName}/data", datasetName=SIMUDATASETNAMES),
-        cellNamesFiles=expand(SIFITTRUEMONOVARSNVSTRUEPARAMSLOCALDIR + "{datasetName}/cell_names", datasetName=SIMUDATASETNAMES)
+        dataFiles=expand(SIFITTRUEMONOVARSNVSTRUEPARAMSLOCALDIR + "{dataType}/{datasetName}/data", dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES),
+        cellNamesFiles=expand(SIFITTRUEMONOVARSNVSTRUEPARAMSLOCALDIR + "{dataType}/{datasetName}/cell_names", dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES)
     output:
         protected(SIFITLOCALFLAGFILEPUSHEDTRUEMONOVARDATA)
     params:
@@ -119,6 +130,7 @@ checkpoint runSifitWithTrueMonovarSNVsRemote:
         gitDir=config["benchmark"]["git"]["skeletonDir"] + config["benchmark"]["sifit"]["dir"],
         repoPath=os.path.abspath(SIFITGITSKELETONTRUEMONOVARLOCALDIR),
         dataset=SIMUDATASETNAMES,
+        dataType=SIMUDATATYPES,
         log=SIFITTRUEMONOVARSNVSLOCALDIR + "out"
     conda:
         "scripts/envs/ssh.yaml"
@@ -130,6 +142,7 @@ checkpoint runSifitWithTrueMonovarSNVsRemote:
         "--bash {input.bashScript} "
         "--upload {input.snakeFile} "
         "--dataset {params.dataset} "
+        "--datatype {params.dataType} "
         "--snkmkdir {params.snakemakeDir} "
         "--gitdir {params.gitDir} "
         "--repopath {params.repoPath} "
@@ -149,7 +162,7 @@ checkpoint runSifitWithTrueMonovarSNVsRemote:
 def get_sifit_trees_true_monovar(wildcards, subfolder):
     root_path = os.path.join(os.path.dirname(checkpoints.runSifitWithTrueMonovarSNVsRemote.get().output[0]), subfolder)
     # shell("echo \"%s\" >&2" % root_path)
-    files = expand(root_path + "{datasetName}/data_mlTree.newick", datasetName=SIMUDATASETNAMES)
+    files = expand(root_path + "{dataType}/{datasetName}/data_mlTree.newick", dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES)
     # for _file in files:
     #     shell("echo \"%s\" >&2 " % _file)
     return files
@@ -160,15 +173,16 @@ rule gatherSifitTreesTrueMonovarSNVsTrueParams:
         inferredTrees = lambda wildcards: get_sifit_trees_true_monovar(wildcards, config["benchmark"]["paramTypes"]["fromTrueParamsDir"]),
         trueTrees = expand(SIMUCONVERTEDTRUETREEDIR + config["benchmark"]["simulation"]["treesWithoutTrunkWithoutNormalDir"] + config["benchmark"]["simulation"]["treesPre"] + ".{datasetName}", datasetName=SIMUDATASETNAMES)
     output:
-        ANALYSISTREECOMPDIR + "from_sifit_" + config["benchmark"]["analysis"]["trueMonovarSNVs"] + "_" + config["benchmark"]["analysis"]["trueParameters"] + ".tsv"
+        protected(ANALYSISTREECOMPDIR + "from_sifit_" + config["benchmark"]["analysis"]["trueMonovarSNVs"] + "_" + config["benchmark"]["analysis"]["trueParameters"] + ".tsv")
     params:
-        forSieve=False,
         datasetNames=SIMUDATASETNAMES,
         trueTreesDir=SIMUCONVERTEDTRUETREEDIR + config["benchmark"]["simulation"]["treesWithoutTrunkWithoutNormalDir"],
         trueTreesPre=config["benchmark"]["simulation"]["treesPre"],
         tool="sifit",
         snvType=config["benchmark"]["analysis"]["trueMonovarSNVs"],
         toolSetup=config["benchmark"]["analysis"]["trueParameters"],
+        fineTuneType=None,
+        dataType=SIMUDATATYPES,
         cellNum=config["benchmark"]["analysis"]["cellNum"],
         covMean=config["benchmark"]["analysis"]["covMean"],
         covVariance=config["benchmark"]["analysis"]["covVariance"],
@@ -176,8 +190,6 @@ rule gatherSifitTreesTrueMonovarSNVsTrueParams:
         adoRate=config["benchmark"]["analysis"]["adoRate"],
         deletionRate=config["benchmark"]["analysis"]["deletionRate"],
         insertionRate=config["benchmark"]["analysis"]["insertionRate"]
-    conda:
-        "scripts/envs/pandas.yaml"
     script:
         "scripts/gather_inferred_trees_part.py"
 
@@ -190,7 +202,7 @@ rule gatherSifitTreesTrueMonovarSNVsTrueParams:
 def get_sifit_parameters_true_monovar(wildcards, subfolder, file_name):
     root_path = os.path.join(os.path.dirname(checkpoints.runSifitWithTrueMonovarSNVsRemote.get().output[0]), subfolder)
     # shell("echo \"%s\" >&2" % root_path)
-    files = expand(root_path + "{datasetName}/" + file_name, datasetName=SIMUDATASETNAMES)
+    files = expand(root_path + "{dataType}/{datasetName}/" + file_name, dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES)
     # for _file in files:
     #     shell("echo \"%s\" >&2 " % _file)
     return files
@@ -200,7 +212,7 @@ rule getSifitParamsWithTrueMonovarSNVsTrueParams:
     input: 
         lambda wildcards: get_sifit_parameters_true_monovar(wildcards, config["benchmark"]["paramTypes"]["fromTrueParamsDir"], "true_out")
     output: 
-        ANALYSISPARAMSDIR + "from_sifit_" + config["benchmark"]["analysis"]["trueMonovarSNVs"] + "_" + config["benchmark"]["analysis"]["trueParameters"] + ".tsv"
+        protected(ANALYSISPARAMSDIR + "from_sifit_" + config["benchmark"]["analysis"]["trueMonovarSNVs"] + "_" + config["benchmark"]["analysis"]["trueParameters"] + ".tsv")
     params:
         cellNum=config["benchmark"]["analysis"]["cellNum"],
         covMean=config["benchmark"]["analysis"]["covMean"],
@@ -208,9 +220,37 @@ rule getSifitParamsWithTrueMonovarSNVsTrueParams:
         datasetNames=SIMUDATASETNAMES,
         tool="sifit",
         snvType=config["benchmark"]["analysis"]["trueMonovarSNVs"],
-        toolSetup=config["benchmark"]["analysis"]["trueParameters"]
-    conda:
-        "scripts/envs/pandas.yaml"
+        toolSetup=config["benchmark"]["analysis"]["trueParameters"],
+        fineTuneType=None,
+        dataType=SIMUDATATYPES
     script:
         "scripts/get_param_estimates_sifit.py"
+
+
+#######################################################
+#        Gather the number of sites from SIFIT        #
+#######################################################
+
+# Rule: gather the number of variant sites as input to SIFIT
+rule gatherSifitSitesInfoWithTrueMonovarSNVsTrueParams:
+    input:
+        data=expand(MONOVARTRUEPARAMSDIR + "{dataType}/{datasetName}/post_processed/filtered.sifit_data", dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES)
+    output:
+        protected(ANALYSISSITESINFODIR + "from_sifit_" + config["benchmark"]["analysis"]["trueMonovarSNVs"] + "_" + config["benchmark"]["analysis"]["trueParameters"] + ".tsv")
+    params:
+        datasetNames=SIMUDATASETNAMES,
+        tool="sifit",
+        snvType=config["benchmark"]["analysis"]["trueMonovarSNVs"],
+        toolSetup=config["benchmark"]["analysis"]["trueParameters"],
+        fineTuneType=None,
+        dataType=SIMUDATATYPES,
+        cellNum=config["benchmark"]["analysis"]["cellNum"],
+        covMean=config["benchmark"]["analysis"]["covMean"],
+        covVariance=config["benchmark"]["analysis"]["covVariance"],
+        effSeqErrRate=config["benchmark"]["analysis"]["effSeqErrRate"],
+        adoRate=config["benchmark"]["analysis"]["adoRate"],
+        deletionRate=config["benchmark"]["analysis"]["deletionRate"],
+        insertionRate=config["benchmark"]["analysis"]["insertionRate"]
+    script:
+        "scripts/gather_sites_info_sifit.py"
 

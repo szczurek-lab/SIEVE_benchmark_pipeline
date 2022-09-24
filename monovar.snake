@@ -1,13 +1,24 @@
-import shutil
+"""
+Explanation of wildcards:
+
+dataType: input data types, e.g., no CNVs, including CNVs, excluding CNVs, etc.
+datasetName: simulated dataset names, e.g., 0001, 0002, 0003...
+"""
+
 
 include: "scripts/constants.py"
 include: "scripts/utils.py"
 
+
 #########################################################
-#              Get simulated dataset names              #
+#              Get categories of wildcards              #
 #########################################################
 
 SIMUDATASETNAMES = get_dataset_names(SIMUSNVSITESDIR)
+SIMUDATATYPES = get_data_types(
+    config["benchmark"]["simulatedDataTypes"],
+    config["benchmark"]["simulation"]["dataTypes"]["CNVTypes"]
+)
 
 
 #######################################################
@@ -16,22 +27,25 @@ SIMUDATASETNAMES = get_dataset_names(SIMUSNVSITESDIR)
 
 # Rule: run MOVONAR with TRUE parameters
 rule runMonovarWithTrueParams:
-    input: 
-        mpileupFile=SIMUMPILEUPDATADIR + "{datasetName}/" + SIMUMPILEUPWITHOUTNORMAL,
+    input:
+        flagFile=SIMUDATATYPESDIR + "DONE_FLAG",
+        mpileupFile=SIMUDATATYPESDIR + "{dataType}/{datasetName}/read_counts" + config["benchmark"]["simulation"]["MPileUpDataSuf"],
         refFile=SIMURAWDATADIR + "{datasetName}/" + config["benchmark"]["simulation"]["refGenomeData"],
         bamFileNames=SIMUMONOVARDIR + config["benchmark"]["simulation"]["bamFileNamesWithoutNormal"]
-    output: 
-        protected(MONOVARTRUEPARAMSDIR + "{datasetName}/monovar.vcf")
+    output:
+        protected(MONOVARTRUEPARAMSDIR + "{dataType}/{datasetName}/monovar.vcf")
     params:
         monovar=config["tools"]["monovar"],
         fpPrior=config["benchmark"]["analysis"]["effSeqErrRate"],
         fnPrior=config["benchmark"]["analysis"]["adoRate"],
-        prefix=MONOVARTRUEPARAMSDIR + "{datasetName}/"
+        prefix=MONOVARTRUEPARAMSDIR + "{dataType}/{datasetName}/"
     threads:
         config["fineTune"]["monovar"]["threads"]
     conda:
         "scripts/envs/monovar.yaml"
-    shell: 
+    benchmark:
+        repeat(EFFICIENCYMONOVARDIR + "{dataType}/{datasetName}.tsv", config["benchmark"]["efficiency"]["repetition"])
+    shell:
         "cat {input.mpileupFile} | "
         "{params.monovar} "
         "-p {params.fpPrior} "
@@ -45,15 +59,13 @@ rule runMonovarWithTrueParams:
 # Rule: filter VCF results from MONOVAR with TRUE parameters
 rule filterMonovarVarInfoTrueParams:
     input:
-        MONOVARTRUEPARAMSDIR + "{datasetName}/monovar.vcf"
+        MONOVARTRUEPARAMSDIR + "{dataType}/{datasetName}/monovar.vcf"
     output:
-        gz=protected(MONOVARTRUEPARAMSDIR + "{datasetName}/monovar.vcf.gz"),
-        filtered=protected(MONOVARTRUEPARAMSDIR + "{datasetName}/filtered.vcf")
-    conda:
-        "scripts/envs/bcftools.yaml"
+        gz=protected(MONOVARTRUEPARAMSDIR + "{dataType}/{datasetName}/monovar.vcf.gz"),
+        filtered=protected(MONOVARTRUEPARAMSDIR + "{dataType}/{datasetName}/filtered.vcf")
     shell:
-        "bgzip -c {input} > {output.gz}; "
-        "tabix -p vcf {output.gz}; "
+        "bgzip -c {input} > {output.gz} && "
+        "tabix -p vcf {output.gz} && "
         "bcftools filter "
         "--include \"FILTER='PASS'\" "
         "--output-type v "
@@ -63,17 +75,17 @@ rule filterMonovarVarInfoTrueParams:
 # Rule: get variant calling information from MONOVAR with TRUE parameters
 rule getMonovarVarInfoTrueParams:
     input:
-        MONOVARTRUEPARAMSDIR + "{datasetName}/filtered.vcf"
+        MONOVARTRUEPARAMSDIR + "{dataType}/{datasetName}/filtered.vcf"
     output:
-        cellNames=protected(MONOVARTRUEPARAMSDIR + "{datasetName}/post_processed/filtered.cell_names"),
-        lociInfo=protected(MONOVARTRUEPARAMSDIR + "{datasetName}/post_processed/filtered.loci_info"),
-        genotypes=protected(MONOVARTRUEPARAMSDIR + "{datasetName}/post_processed/filtered.genotypes"),
-        ternary=protected(MONOVARTRUEPARAMSDIR + "{datasetName}/post_processed/filtered.ternary"),
-        genotypeProbs=protected(MONOVARTRUEPARAMSDIR + "{datasetName}/post_processed/filtered.genotype_probs"),
-        sifitData=protected(MONOVARTRUEPARAMSDIR + "{datasetName}/post_processed/filtered.sifit_data"),
-        sifitCellNames=protected(MONOVARTRUEPARAMSDIR + "{datasetName}/post_processed/filtered.sifit_cell_names")
+        cellNames=protected(MONOVARTRUEPARAMSDIR + "{dataType}/{datasetName}/post_processed/filtered.cell_names"),
+        lociInfo=protected(MONOVARTRUEPARAMSDIR + "{dataType}/{datasetName}/post_processed/filtered.loci_info"),
+        genotypes=protected(MONOVARTRUEPARAMSDIR + "{dataType}/{datasetName}/post_processed/filtered.genotypes"),
+        ternary=protected(MONOVARTRUEPARAMSDIR + "{dataType}/{datasetName}/post_processed/filtered.ternary"),
+        genotypeProbs=protected(MONOVARTRUEPARAMSDIR + "{dataType}/{datasetName}/post_processed/filtered.genotype_probs"),
+        sifitData=protected(MONOVARTRUEPARAMSDIR + "{dataType}/{datasetName}/post_processed/filtered.sifit_data"),
+        sifitCellNames=protected(MONOVARTRUEPARAMSDIR + "{dataType}/{datasetName}/post_processed/filtered.sifit_cell_names")
     params:
-        prefix=MONOVARTRUEPARAMSDIR + "{datasetName}/post_processed/filtered"
+        prefix=MONOVARTRUEPARAMSDIR + "{dataType}/{datasetName}/post_processed/filtered"
     shell:
         "python scripts/extract_info_from_vcf.py "
         "--mode monovar "
@@ -88,24 +100,27 @@ rule getMonovarVarInfoTrueParams:
 
 # Rule: gather filtered variant calling results from MONOVAR working with TRUE parameters
 rule gatherMonovarVarResultsTrueParams:
-    input: 
-        cellNames=expand(MONOVARTRUEPARAMSDIR + "{datasetName}/post_processed/filtered.cell_names", datasetName=SIMUDATASETNAMES),
-        lociInfo=expand(MONOVARTRUEPARAMSDIR + "{datasetName}/post_processed/filtered.loci_info", datasetName=SIMUDATASETNAMES),
-        genotypes=expand(MONOVARTRUEPARAMSDIR + "{datasetName}/post_processed/filtered.genotypes", datasetName=SIMUDATASETNAMES),
-        ternary=expand(MONOVARTRUEPARAMSDIR + "{datasetName}/post_processed/filtered.ternary", datasetName=SIMUDATASETNAMES),
-        genotypeProbs=expand(MONOVARTRUEPARAMSDIR + "{datasetName}/post_processed/filtered.genotype_probs", datasetName=SIMUDATASETNAMES)
-    output: 
-        ANALYSISVARCALLDIR + "from_monovar_" + config["benchmark"]["analysis"]["trueParameters"] + ".tsv"
+    input:
+        cellNames=expand(MONOVARTRUEPARAMSDIR + "{dataType}/{datasetName}/post_processed/filtered.cell_names", dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES),
+        lociInfo=expand(MONOVARTRUEPARAMSDIR + "{dataType}/{datasetName}/post_processed/filtered.loci_info", dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES),
+        genotypes=expand(MONOVARTRUEPARAMSDIR + "{dataType}/{datasetName}/post_processed/filtered.genotypes", dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES),
+        ternary=expand(MONOVARTRUEPARAMSDIR + "{dataType}/{datasetName}/post_processed/filtered.ternary", dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES),
+        genotypeProbs=expand(MONOVARTRUEPARAMSDIR + "{dataType}/{datasetName}/post_processed/filtered.genotype_probs", dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES),
+        trueCellNames=SIMUTUMORCELLNAMES,
+        trueSNVSites=expand(SIMUDATATYPESDIR + "{dataType}/{datasetName}/" + config["benchmark"]["simulation"]["trueSNVSitesNamesPre"], dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES),
+        trueSNVGenotypesNU=expand(SIMUDATATYPESDIR + "{dataType}/{datasetName}/" + config["benchmark"]["simulation"]["trueSNVGenotypesNUPre"], dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES),
+        trueSNVGenotypesTer=expand(SIMUDATATYPESDIR + "{dataType}/{datasetName}/" + config["benchmark"]["simulation"]["trueSNVGenotypesTerPre"] + '.simple', dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES)
+    output:
+        protected(ANALYSISVARCALLDIR + "from_monovar_" + config["benchmark"]["analysis"]["trueParameters"] + ".tsv")
     params:
         forSieve=False,
         mergedDuplicateLines=False,
         datasetNames=SIMUDATASETNAMES,
         tool="monovar",
+        snvType=None,
         toolSetup=config["benchmark"]["analysis"]["trueParameters"],
-        trueCellNames=SIMUTUMORCELLNAMES,
-        trueLociInfoPre=SIMUSNVSITESDIR + config["benchmark"]["simulation"]["trueSNVSitesNamesPre"],
-        trueGenotypesNUPre=SIMUTRUESNVDIR + config["benchmark"]["simulation"]["trueSNVGenotypesNUPre"],
-        trueGenotypesTerPre=SIMUTRUESNVDIR + config["benchmark"]["simulation"]["trueSNVGenotypesTerPre"],
+        fineTuneType=None,
+        dataType=SIMUDATATYPES,
         cellNum=config["benchmark"]["analysis"]["cellNum"],
         covMean=config["benchmark"]["analysis"]["covMean"],
         covVariance=config["benchmark"]["analysis"]["covVariance"],
@@ -113,8 +128,6 @@ rule gatherMonovarVarResultsTrueParams:
         adoRate=config["benchmark"]["analysis"]["adoRate"],
         deletionRate=config["benchmark"]["analysis"]["deletionRate"],
         insertionRate=config["benchmark"]["analysis"]["insertionRate"]
-    conda:
-        "scripts/envs/pandas.yaml"
     script:
         "scripts/gather_variant_calling_results_part.py"
 

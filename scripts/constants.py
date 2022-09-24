@@ -34,6 +34,9 @@ SIMUMPILEUPWITHNORMAL = config["benchmark"]["simulation"]["MPileUpDataWithNormal
 SIMUMPILEUPWITHOUTNORMAL = config["benchmark"]["simulation"]["MPileUpDataWithoutNormalPre"] + \
     config["benchmark"]["simulation"]["MPileUpDataSuf"]
 
+# Add CNVs to simulated data
+SIMUDATATYPESDIR = SIMUDATADIR + config["benchmark"]["simulation"]["dataTypes"]["dir"]
+
 # BAM file names as input for MONOVAR
 SIMUMONOVARDIR = SIMUDATADIR + config["benchmark"]["simulation"]["monovarDir"]
 
@@ -110,18 +113,21 @@ ANALYSISVARCALLDIR = ANALYSISDIR + config["benchmark"]["analysis"]["varCallResul
 # Analysis results of ado calling
 ANALYSISADOCALLDIR = ANALYSISDIR + config["benchmark"]["analysis"]["adoCallResultsDir"]
 
+# Analysis results of sites info
+ANALYSISSITESINFODIR = ANALYSISDIR + config["benchmark"]["analysis"]["sitesInfoDir"]
+
 # Analysis results of allelic information
 ANALYSISALLELICINFO = ANALYSISDIR + config["benchmark"]["analysis"]["allelicInfoPerCellDir"]
 
 # Efficiency benchmarking results
-#EFFICIENCYDIR = config["benchmark"]["baseDir"] + config["benchmark"]["efficiency"]["dir"]
+EFFICIENCYDIR = config["benchmark"]["baseDir"] + config["benchmark"]["efficiency"]["dir"]
 
-#EFFICIENCYMONOVARDIR = EFFICIENCYDIR + config["benchmark"]["monovar"]["dir"]
+EFFICIENCYMONOVARDIR = EFFICIENCYDIR + config["benchmark"]["monovar"]["dir"]
 
-#EFFICIENCYSCIPHIDIR = EFFICIENCYDIR + config["benchmark"]["sciphi"]["dir"]
+EFFICIENCYSCIPHIDIR = EFFICIENCYDIR + config["benchmark"]["sciphi"]["dir"]
 
-#EFFICIENCYSIEVEDIR = EFFICIENCYDIR + config["benchmark"]["sieve"]["dir"]
+EFFICIENCYSIEVEDIR = EFFICIENCYDIR + config["benchmark"]["sieve"]["dir"]
 
-#EFFICIENCYCELLPHYDIR = EFFICIENCYDIR + config["benchmark"]["cellphy"]["dir"]
+EFFICIENCYCELLPHYDIR = EFFICIENCYDIR + config["benchmark"]["cellphy"]["dir"]
 
-#EFFICIENCYSIFITDIR = EFFICIENCYDIR + config["benchmark"]["sifit"]["dir"]
+EFFICIENCYSIFITDIR = EFFICIENCYDIR + config["benchmark"]["sifit"]["dir"]

@@ -1,12 +1,12 @@
 import argparse
 import os
-from typing import Tuple, Union, Dict, List
+from typing import Union
 
 import yaml
 import paramiko
 
 
-upload_files: Dict = {
+upload_files: dict = {
     "constants": "scripts/constants.py",
     "utils": "scripts/utils.py"
 }
@@ -31,18 +31,18 @@ def parse_system_args() -> argparse.Namespace:
     return sys_args
 
 
-def load_yaml(file_path: str) -> Dict:
+def load_yaml(file_path: str) -> dict:
     with open(file_path, 'r') as fh:
-        ssh_config: Dict = yaml.load(fh, Loader=yaml.FullLoader)
+        ssh_config: dict = yaml.load(fh, Loader=yaml.FullLoader)
     return ssh_config
 
 
-def add_datasets_2_config(ssh_config: Dict, datasets: List[str]):
+def add_datasets_2_config(ssh_config: dict, datasets: list[str]):
     ssh_config['benchmark']['simulation']['datasetNames'] = datasets
 
 
-def create_ssh_connection(ssh_config: Dict) -> \
-        Tuple[Union[None, paramiko.SSHClient], paramiko.SSHClient]:
+def create_ssh_connection(ssh_config: dict) -> \
+        tuple[Union[None, paramiko.SSHClient], paramiko.SSHClient]:
     jump_server_of_remote = None
 
     remote_server: paramiko.SSHClient = paramiko.SSHClient()
@@ -89,7 +89,7 @@ def create_sftp(server: paramiko.SSHClient) -> paramiko.SFTPClient:
     return server.open_sftp()
 
 
-def dump_config_on_remote_server(sftp: paramiko.SFTPClient, file_name: str, ssh_config: Dict) -> None:
+def dump_config_on_remote_server(sftp: paramiko.SFTPClient, file_name: str, ssh_config: dict) -> None:
     try:
         print(sftp.stat(file_name))
         print(file_name + ' exists on remote server. Skip creation.')
@@ -116,7 +116,7 @@ def upload_files_2_remote_server(
         remote_server: paramiko.SSHClient,
         root_path_on_server: str,
         config_file_name: str,
-        ssh_config: Dict
+        ssh_config: dict
 ) -> None:
     remote_server_sftp: paramiko.SFTPClient = create_sftp(remote_server)
     remote_server.exec_command("mkdir -p " + os.path.dirname(root_path_on_server))
@@ -128,7 +128,7 @@ def upload_files_2_remote_server(
                                         val,
                                         os.path.join(root_path_on_server, val)
                                         )
-        elif isinstance(val, List):
+        elif isinstance(val, list):
             for item in val:
                 upload_file_2_remote_server(remote_server,
                                             remote_server_sftp,

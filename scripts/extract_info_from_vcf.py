@@ -1,22 +1,38 @@
 import argparse
 import os
-from typing import Tuple, Dict, List, Union
+from typing import Union
 
 
-def parse_system_args() -> Tuple[argparse.Namespace, Dict[str, str]]:
+def parse_system_args() -> tuple[argparse.Namespace, dict[str, str]]:
     sys_args_parser = argparse.ArgumentParser(description='Extract information from vcf file.')
-    sys_args_parser.add_argument('input', help='a vcf file or a file list containing a vcf file (for sieve2)', type=str)
-    sys_args_parser.add_argument('--mode', help='which type of the input vcf file is? For monovar and sieve, '
-                                                'a standard vcf file is input; for sciphi, the input vcf file has no '
-                                                'PL filed. For sieve1, --input would be vcf; for sieve2, --input '
-                                                'should be a file list containing a vcf file name.',
-                                 type=str, choices=['monovar', 'sciphi', 'sieve1', "sieve2"])
-    sys_args_parser.add_argument('--prefix', help='prefix of output files; if not provided, prefix of input file will '
-                                                  'be used', type=str)
-    sys_args_parser.add_argument('--probs', help='a .probs file should be specified when --mode is sciphi', type=str)
-    sys_args_parser.add_argument('--sifit',
-                                 help='save input data to SIFIT: binary (b), ternary (t), or not saving (n)?',
-                                 type=str, choices=['n', 'b', 't'], default='n')
+    sys_args_parser.add_argument(
+        'input',
+        type=str,
+        help='a vcf file or a file list containing a vcf file (for sieve2)'
+    )
+    sys_args_parser.add_argument(
+        '--mode',
+        type=str,
+        choices=['monovar', 'sciphi', 'sieve1', "sieve2"],
+        help='which type of the input vcf file is? For monovar and sieve, a standard vcf file is input; for sciphi, the input vcf file has no PL filed. For sieve1, --input would be vcf; for sieve2, --input should be a file list containing a vcf file name.'
+    )
+    sys_args_parser.add_argument(
+        '--prefix',
+        type=str,
+        help='prefix of output files; if not provided, prefix of input file will be used'
+    )
+    sys_args_parser.add_argument(
+        '--probs',
+        type=str,
+        help='a .probs file should be specified when --mode is sciphi'
+    )
+    sys_args_parser.add_argument(
+        '--sifit',
+        type=str,
+        choices=['n', 'b', 't'],
+        default='n',
+        help='save input data to SIFIT: binary (b), ternary (t), or not saving (n)?'
+    )
     sys_args = sys_args_parser.parse_args()
 
     if (sys_args.mode == 'monovar' or sys_args.mode == 'sieve') and sys_args.probs is not None:
@@ -26,24 +42,26 @@ def parse_system_args() -> Tuple[argparse.Namespace, Dict[str, str]]:
     if sys_args.mode == 'sieve' and sys_args.sifit == 'n':
         raise ValueError('Error! When in mode \'sieve\', --sifit should be set to \'b\' or \'t\'.')
     if not os.path.isfile(sys_args.input):
-        raise ValueError('Error! File ' + sys_args.input + ' does not exist.')
+        raise ValueError(f'Error! File {sys_args.input} does not exist.')
 
     if sys_args.prefix is not None:
         prefix = sys_args.prefix
     else:
         prefix = os.path.splitext(sys_args.input)[0]
 
-    output_files = {'cell_names': prefix + '.cell_names',
-                    'loci_info': prefix + '.loci_info',
-                    'genotypes': prefix + '.genotypes',
-                    'ternary': prefix + '.ternary',
-                    'genotype_probs': prefix + '.genotype_probs',
-                    'sifit_data': prefix + '.sifit_data',
-                    'sifit_cell_names': prefix + '.sifit_cell_names'}
+    output_files = {
+        'cell_names': prefix + '.cell_names',
+        'loci_info': prefix + '.loci_info',
+        'genotypes': prefix + '.genotypes',
+        'ternary': prefix + '.ternary',
+        'genotype_probs': prefix + '.genotype_probs',
+        'sifit_data': prefix + '.sifit_data',
+        'sifit_cell_names': prefix + '.sifit_cell_names'
+    }
     return sys_args, output_files
 
 
-def is_all_at_least_one(values: List[str]) -> bool:
+def is_all_at_least_one(values: list[str]) -> bool:
     if values is None or len(values) == 0:
         return False
 
@@ -59,11 +77,11 @@ def is_all_at_least_one(values: List[str]) -> bool:
     return True
 
 
-def is_zero_and_more(values: List[str]) -> bool:
+def is_zero_and_more(values: list[str]) -> bool:
     if values is None or len(values) == 0:
         return False
 
-    results: List[int] = []
+    results: list[int] = []
     for i in values:
         try:
             value = int(i)
@@ -100,7 +118,7 @@ def genotype2ternary(genotype: str) -> int:
         )
 
 
-def get_genotypes_probs(gt00: int, gt01: int, gt11: int) -> Tuple[float, float, float]:
+def get_genotypes_probs(gt00: int, gt01: int, gt11: int) -> tuple[float, float, float]:
     gt00_f = pow(10, -1 * gt00 / 10)
     gt01_f = pow(10, -1 * gt01 / 10)
     gt11_f = pow(10, -1 * gt11 / 10)
@@ -117,9 +135,9 @@ def get_vcf_file(input_file: str) -> str:
     raise ValueError('Error! File ' + input_file + ' does not contain a vcf file.')
 
 
-def parse_vcf_file(input_file: str, mode: str, probs_file: str) -> Tuple[
-    List[str], List[Tuple[str, int]], Dict[str, List[str]], Dict[str, List[int]], Dict[
-        str, List[Union[Tuple[float, float, float], Tuple[float, float]]]]]:
+def parse_vcf_file(input_file: str, mode: str, probs_file: str) -> tuple[
+    list[str], list[tuple[str, int]], dict[str, list[str]], dict[str, list[int]], dict[
+        str, list[Union[tuple[float, float, float], tuple[float, float]]]]]:
     tmp_input_file: str = input_file
 
     if mode == "sieve2":
@@ -230,7 +248,7 @@ def parse_vcf_file(input_file: str, mode: str, probs_file: str) -> Tuple[
         return cell_names, loci_info, genotypes, ternary, genotype_probs
 
 
-def print_cell_names(out_file: str, cell_names: List[str]):
+def print_cell_names(out_file: str, cell_names: list[str]):
     if not os.path.exists(os.path.dirname(out_file)):
         os.makedirs(os.path.dirname(out_file))
     with open(out_file, 'w') as fh:
@@ -240,7 +258,7 @@ def print_cell_names(out_file: str, cell_names: List[str]):
                 fh.write('\n')
 
 
-def print_loci_info(out_file: str, loci_info: List[Tuple[str, int]]):
+def print_loci_info(out_file: str, loci_info: list[tuple[str, int]]):
     if not os.path.exists(os.path.dirname(out_file)):
         os.makedirs(os.path.dirname(out_file))
     with open(out_file, 'w') as fh:
@@ -250,7 +268,7 @@ def print_loci_info(out_file: str, loci_info: List[Tuple[str, int]]):
                 fh.write('\n')
 
 
-def print_genotypes(out_file: str, snv_num: int, cell_names: List[str], genotypes: Dict[str, List[str]]):
+def print_genotypes(out_file: str, snv_num: int, cell_names: list[str], genotypes: dict[str, list[str]]):
     if not os.path.exists(os.path.dirname(out_file)):
         os.makedirs(os.path.dirname(out_file))
     with open(out_file, 'w') as fh:
@@ -263,7 +281,7 @@ def print_genotypes(out_file: str, snv_num: int, cell_names: List[str], genotype
                 fh.write('\n')
 
 
-def print_ternary(out_file: str, snv_num: int, cell_names: List[str], ternary: Dict[str, List[int]]):
+def print_ternary(out_file: str, snv_num: int, cell_names: list[str], ternary: dict[str, list[int]]):
     if not os.path.exists(os.path.dirname(out_file)):
         os.makedirs(os.path.dirname(out_file))
     with open(out_file, 'w') as fh:
@@ -276,8 +294,8 @@ def print_ternary(out_file: str, snv_num: int, cell_names: List[str], ternary: D
                 fh.write('\n')
 
 
-def print_genotype_probs(out_file: str, snv_num: int, cell_names: List[str],
-                         genotype_probs: Dict[str, List[Union[Tuple[float, float, float], Tuple[float, float]]]]):
+def print_genotype_probs(out_file: str, snv_num: int, cell_names: list[str],
+                         genotype_probs: dict[str, list[Union[tuple[float, float, float], tuple[float, float]]]]):
     if not os.path.exists(os.path.dirname(out_file)):
         os.makedirs(os.path.dirname(out_file))
     with open(out_file, 'w') as fh:
@@ -294,8 +312,8 @@ def print_genotype_probs(out_file: str, snv_num: int, cell_names: List[str],
                 fh.write('\n')
 
 
-def print_for_sifit(out_data_file: str, out_cell_names_file: str, mode: str, snv: List[Tuple[str, int]],
-                    cell_names: List[str], ternary: Dict[str, List[int]]):
+def print_for_sifit(out_data_file: str, out_cell_names_file: str, mode: str, snv: list[tuple[str, int]],
+                    cell_names: list[str], ternary: dict[str, list[int]]):
     if not os.path.exists(os.path.dirname(out_data_file)):
         os.makedirs(os.path.dirname(out_data_file))
     with open(out_data_file, 'w') as fh:
@@ -325,10 +343,11 @@ def print_for_sifit(out_data_file: str, out_cell_names_file: str, mode: str, snv
 
 def main():
     sys_args, output_files = parse_system_args()
-    cell_names, loci_info, genotypes, ternary, genotype_probs = parse_vcf_file(sys_args.input,
-                                                                               sys_args.mode,
-                                                                               sys_args.probs
-                                                                               )
+    cell_names, loci_info, genotypes, ternary, genotype_probs = parse_vcf_file(
+        sys_args.input,
+        sys_args.mode,
+        sys_args.probs
+    )
     if sys_args.mode == 'monovar' or sys_args.mode == 'sciphi':
         print_cell_names(output_files['cell_names'], cell_names)
         print_loci_info(output_files['loci_info'], loci_info)
@@ -337,12 +356,14 @@ def main():
         print_genotype_probs(output_files['genotype_probs'], len(loci_info), cell_names, genotype_probs)
 
     if sys_args.sifit != 'n':
-        print_for_sifit(output_files['sifit_data'],
-                        output_files['sifit_cell_names'],
-                        sys_args.sifit,
-                        loci_info,
-                        cell_names, ternary
-                        )
+        print_for_sifit(
+            output_files['sifit_data'],
+            output_files['sifit_cell_names'],
+            sys_args.sifit,
+            loci_info,
+            cell_names,
+            ternary
+        )
 
 
 if __name__ == '__main__':

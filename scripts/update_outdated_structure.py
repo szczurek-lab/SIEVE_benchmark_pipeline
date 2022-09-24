@@ -1,7 +1,6 @@
 import argparse
 import os
 import shutil
-from typing import List
 
 
 def parse_sys_args() -> argparse.Namespace:
@@ -31,10 +30,10 @@ def parse_sys_args() -> argparse.Namespace:
     return sys_args
 
 
-def targets_in_line(targets: List[str], line: str) -> List[str]:
-    hits: List[str] = []
-    results: List[str] = []
-    indices: List[int] = []
+def targets_in_line(targets: list[str], line: str) -> list[str]:
+    hits: list[str] = []
+    results: list[str] = []
+    indices: list[int] = []
     for target in targets:
         if ' -' + target + ' ' in line:
             hits.append(' -' + target + ' ')
@@ -48,7 +47,7 @@ def targets_in_line(targets: List[str], line: str) -> List[str]:
     return results
 
 
-def replace_strings_in_line(line: str, targets: List[str], substitution: List[str]) -> str:
+def replace_strings_in_line(line: str, targets: list[str], substitution: list[str]) -> str:
     new_line: str = line
     if targets is not None and len(targets) > 0:
         for index in range(len(targets)):
@@ -56,7 +55,7 @@ def replace_strings_in_line(line: str, targets: List[str], substitution: List[st
     return new_line
 
 
-def remove_options_in_line(positives: List[str], line: str) -> str:
+def remove_options_in_line(positives: list[str], line: str) -> str:
     if positives is not None and len(positives) > 0:
         new_line: str = ''
         index: int = 0
@@ -81,7 +80,7 @@ def update_command_files(sys_args: argparse.Namespace):
                 shutil.move(os.path.join(root, file), os.path.join(root, file + sys_args.os))
 
                 if sys_args.stbr is not None:
-                    _old_content: List[str] = []
+                    _old_content: list[str] = []
                     with open(os.path.join(root, file + sys_args.os), 'r') as fh:
                         for line in fh:
                             _old_content.append(replace_strings_in_line(line, sys_args.stbr, sys_args.osr))
@@ -91,7 +90,7 @@ def update_command_files(sys_args: argparse.Namespace):
                             fh.write(line)
 
                 if sys_args.stbr is not None or sys_args.op is not None:
-                    _new_content: List[str] = []
+                    _new_content: list[str] = []
                     with open(os.path.join(root, file + sys_args.ns), 'r') as fh:
                         for line in fh:
                             hits = targets_in_line(sys_args.op, line)

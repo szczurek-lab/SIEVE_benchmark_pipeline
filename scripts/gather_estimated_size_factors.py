@@ -1,10 +1,9 @@
-from typing import List
 import pandas as pd
 import numpy as np
 import os
 
 
-def _get_specific_file(files: List[str], key1: str, key2: str = '') -> str:
+def _get_specific_file(files: list[str], key1: str, key2: str = '') -> str:
     for file in files:
         if key2 == '':
             if key1 in file:
@@ -14,7 +13,7 @@ def _get_specific_file(files: List[str], key1: str, key2: str = '') -> str:
                 return file
     raise ValueError('Error! ' + key1 + ' and ' + key2 + ' are not found.')
 
-def _get_content_files(file: str) -> List[str]:
+def _get_content_files(file: str) -> list[str]:
     if os.path.isfile(file):
         results = []
         root = os.path.abspath(os.path.dirname(file))
@@ -25,7 +24,7 @@ def _get_content_files(file: str) -> List[str]:
                     results.append(content)
         return results
 
-def _get_cell_names(input: str) -> List[str]:
+def _get_cell_names(input: str) -> list[str]:
     if os.path.isfile(input):
         results = []
         with open(input, 'r') as fh:
@@ -33,7 +32,7 @@ def _get_cell_names(input: str) -> List[str]:
                 results.append(line.strip())
         return results
 
-def _get_values(input: str) -> List[float]:
+def _get_values(input: str) -> list[float]:
     if os.path.isfile(input):
         results = []
         with open(input, 'r') as fh:
@@ -79,23 +78,25 @@ for sieve_run_template in sorted(snakemake.params['sieveRunTemplates']):
             difference.extend(list(_difference))
             difference_in_percentage.extend(list(_difference_in_percentage))
 
-size_factors_collection = pd.DataFrame({
-    'cell_num': snakemake.params['cellNum'],
-    'coverage_mean': snakemake.params["covMean"],
-    'coverage_variance': snakemake.params["covVariance"],
-    'eff_seq_err_rate': snakemake.params['effSeqErrRate'],
-    'ado_rate': snakemake.params['adoRate'],
-    'deletion_rate': snakemake.params['deletionRate'],
-    'insertion_rate': snakemake.params['insertionRate'],
-    'dataset': pd.Series(dataset),
-    'tool': snakemake.params['tool'],
-    'snv_type': snakemake.params['snvType'],
-    'tool_setup': pd.Series(tool_setup),
-    'cell_names': pd.Series(cell_names),
-    'true_size_factors': pd.Series(true_size_factors),
-    'estimated_size_factors': pd.Series(size_factors),
-    'difference': pd.Series(difference),
-    'difference_in_percentage': pd.Series(difference_in_percentage)
-    })
+size_factors_collection = pd.DataFrame(
+    {
+        'cell_num': snakemake.params['cellNum'],
+        'coverage_mean': snakemake.params["covMean"],
+        'coverage_variance': snakemake.params["covVariance"],
+        'eff_seq_err_rate': snakemake.params['effSeqErrRate'],
+        'ado_rate': snakemake.params['adoRate'],
+        'deletion_rate': snakemake.params['deletionRate'],
+        'insertion_rate': snakemake.params['insertionRate'],
+        'dataset': pd.Series(dataset),
+        'tool': snakemake.params['tool'],
+        'snv_type': snakemake.params['snvType'],
+        'tool_setup': pd.Series(tool_setup),
+        'cell_names': pd.Series(cell_names),
+        'true_size_factors': pd.Series(true_size_factors),
+        'estimated_size_factors': pd.Series(size_factors),
+        'difference': pd.Series(difference),
+        'difference_in_percentage': pd.Series(difference_in_percentage)
+    }
+)
 
 size_factors_collection.to_csv(snakemake.output[0], sep='\t', na_rep='NA', index=False)

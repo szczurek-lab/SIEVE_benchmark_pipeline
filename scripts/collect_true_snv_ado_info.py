@@ -1,8 +1,7 @@
-from typing import List, Tuple
 import os
 
 
-def _get_cell_names(input: str) -> List[str]:
+def _get_cell_names(input: str) -> list[str]:
     if os.path.isfile(input):
         results = []
         with open(input, 'r') as fh:
@@ -10,7 +9,7 @@ def _get_cell_names(input: str) -> List[str]:
                 results.append(line.strip())
         return results
 
-def _get_loci_info(input: str) -> List[Tuple[str, int]]:
+def _get_loci_info(input: str) -> list[tuple[str, int]]:
     if os.path.isfile(input):
         results = []
         with open(input, 'r') as fh:
@@ -19,7 +18,7 @@ def _get_loci_info(input: str) -> List[Tuple[str, int]]:
                 results.append((comp[0].strip(), int(comp[1].strip())))
         return results
 
-def _get_genotypes(input: str) -> List[List[str]]:
+def _get_genotypes(input: str) -> list[list[str]]:
     if os.path.isfile(input):
         results = []
         with open(input, 'r') as fh:
@@ -29,15 +28,15 @@ def _get_genotypes(input: str) -> List[List[str]]:
 
 def _collect_genotype_ado(
     input: str,
-    cell_names: List[str],
-    snv_sites: List[Tuple[str, int]],
-    genotypes: List[List[str]]
+    cell_names: list[str],
+    snv_sites: list[tuple[str, int]],
+    genotypes: list[list[str]]
 ):
     if os.path.isfile(input):
         with open(input, 'r') as fh:
             for line in fh:
                 if not line.strip().startswith('#'):
-                    comp: List[str] = line.strip().split()
+                    comp: list[str] = line.strip().split()
 
                     if (comp[0], int(comp[1])) not in snv_sites:
                         continue
@@ -59,7 +58,7 @@ def _collect_genotype_ado(
                                 with_ado_homo.append((_snv_index, _cell_index))
 
 def _write_output(
-    data: List[Tuple[int, int]],
+    data: list[tuple[int, int]],
     output: str
 ):
     with open(output, 'w') as fh:
@@ -70,14 +69,14 @@ def _write_output(
             fh.write('\n')
 
 
-with_ado_hetero: List[Tuple[int, int]] = []
-without_ado_hetero: List[Tuple[int, int]] = []
-with_ado_homo: List[Tuple[int, int]] = []
-without_ado_homo: List[Tuple[int, int]] = []
+with_ado_hetero: list[tuple[int, int]] = []
+without_ado_hetero: list[tuple[int, int]] = []
+with_ado_homo: list[tuple[int, int]] = []
+without_ado_homo: list[tuple[int, int]] = []
 
-cell_names: List[str] = _get_cell_names(snakemake.input['cellNames'])
-snv_sites: List[Tuple[str, int]] = _get_loci_info(snakemake.input['snvSitesNames'])
-genotypes: List[List[str]] = _get_genotypes(snakemake.input['trueGenotypes'])
+cell_names: list[str] = _get_cell_names(snakemake.input['cellNames'])
+snv_sites: list[tuple[str, int]] = _get_loci_info(snakemake.input['snvSitesNames'])
+genotypes: list[list[str]] = _get_genotypes(snakemake.input['trueGenotypes'])
 
 _collect_genotype_ado(
     snakemake.input['trueAdoStates'],

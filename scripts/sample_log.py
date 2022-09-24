@@ -1,6 +1,5 @@
 import argparse
 import os
-from typing import List
 
 
 def parse_system_args() -> argparse.Namespace:
@@ -34,8 +33,8 @@ def parse_system_args() -> argparse.Namespace:
     return sys_args
 
 
-def parse_log(log_file: str, step: int) -> List[str]:
-    ret: List[str] = []
+def parse_log(log_file: str, step: int) -> list[str]:
+    ret: list[str] = []
     with open(log_file, 'r') as fh:
         reached_log: bool = False
         count: int = step
@@ -55,7 +54,7 @@ def parse_log(log_file: str, step: int) -> List[str]:
     return ret
 
 
-def write_log(contents: List[str], out_file: str) -> None:
+def write_log(contents: list[str], out_file: str) -> None:
     with open(out_file, 'w') as fh:
         for line in contents:
             fh.write(line)
@@ -64,7 +63,7 @@ def write_log(contents: List[str], out_file: str) -> None:
 
 def main() -> None:
     sys_args: argparse.Namespace = parse_system_args()
-    contents: List[str] = parse_log(sys_args.log, sys_args.step)
+    contents: list[str] = parse_log(sys_args.log, sys_args.step)
     write_log(contents, sys_args.out)
 
 

@@ -1,35 +1,37 @@
 # Any keys end with 'Dir' should have a value ending with '/'.
+# Do not mix while spaces and tabs for indentation! In this file we use while spaces.
 
 # Set paths to the following tools.
 tools:
   # TO BE SET [MANDATORY]
   SIEVE_simulator: /path/to/SIEVE_simulator
-  
+
   # TO BE SET [MANDATORY]
   cellphy: /path/to/cellphy
-  
+
   # Only when SiFit will be run locally.
   # TO BE SET [MANDATORY]
   sifitLocal: /path/to/local/sifit
-  
+
   # Only when SiFit will be run on a remote server.
   # TO BE SET [MANDATORY]
   sifitRemote: /path/to/server/sifit
-  
+
   # TO BE SET [MANDATORY]
   monovar: /path/to/monovar
-  
+
   # TO BE SET [MANDATORY]
   sciphi: /path/to/sciphi
-  
+
   # TO BE SET [MANDATORY]
   dataFilter: /path/to/dataFilter
-  
+
   # TO BE SET [MANDATORY]
   applauncher: /path/to/applauncher
-  
+
   # TO BE SET [MANDATORY]
   beast: /path/to/beast
+
 
 # Only when SiFit will be run on a remote server.
 servers:
@@ -60,6 +62,7 @@ servers:
     port: 22
     rootPath: ''
 
+
 # Set paths to the configuration files.
 configFiles:
   # This config file; relative to the Snakemake files.
@@ -78,8 +81,7 @@ configFiles:
     # TO BE SET [MANDATORY]
       - smc_stage_1
 
-    # For the two-stage strategy; in 'dir'.
-
+    # For the two-stage strategy with combination; in 'dir'.
     # Files of stage1 must also be under 'fileNames'.
     # TO BE SET [MANDATORY]
     stage1FileNames:
@@ -103,38 +105,72 @@ configFiles:
     # Do not forget '/' if it is a folder.
     prefix:
       fromTrueMonovar: from_true_monovar/
-    
+
 
 # Set parameter values for tools.
 fineTune:
+  # TO BE SET [OPTIONAL]
   SIEVE_simulator:
     # Whether to overwrite if simulated data exist.
     # boolean; 'true' or 'false'.
     overwrite: false
+  
+  # For adding CNVs to the simulated data.
+  # TO BE SET [OPTIONAL]
+  simulateCNVs:
+    # Probability of a site containing CNVs.
+    prob: 1/3
+    
+    # The range of the number of CNVs to be sampled from (both minimum and maximum included).
+    minNum: 0
+    maxNum: 10
 
+    seed: 64
+
+  # TO BE SET [MANDATORY]
   cellphy:
-    seed: 142355436435
-    threads: 1
-    parsTrees: 5
+    # Uncomment the following lines if you want to benchmark CellPhy on single- and multi-threading mode. In this case, you may want the value of 'mode' to be 'all'.
+    #st:
+      #mode: search
+      #seed: 142355436435
+      #nrOfSitesPerThread: 20000
+      #parsTrees: 3
+    mt:
+      mode: search
+      seed: 142355436435
+      nrOfSitesPerThread: 200
+      parsTrees: 3
 
+  # TO BE SET [MANDATORY]
   sifit:
-    loops: 1000
+    loops: 200000
 
+  # TO BE SET [OPTIONAL]
   monovar:
     threads: 1
 
+  # TO BE SET [MANDATORY]
   sciphi:
-    loops: 1
+    loops: 500000
     seed: 64
 
+  # TO BE SET [MANDATORY]
   beast:
-    nrOfSitesPerThreadStage1: 1000
-    nrOfSitesPerThreadStage2: 1500
-    seed: 142355436435
+    # Uncomment the following lines if you want to benchmark SIEVE on single- and multi-threading mode.
+    #st:
+      #nrOfSitesPerThreadStage1: 20000
+      #nrOfSitesPerThreadStage2: 20000
+      #seed: 142355436435
+    mt:
+      nrOfSitesPerThreadStage1: 25
+      nrOfSitesPerThreadStage2: 25
+      seed: 142355436435
 
+  # TO BE SET [OPTIONAL]
   treeAnnotator:
     burnIn: 10
 
+  # TO BE SET [OPTIONAL]
   variantCaller:
     burnIn: 10
     threads: 1
@@ -167,7 +203,7 @@ benchmark:
 
     # For the information of TRUE SNV sites; under 'dataDir'.
     trueSNVDir: true_snv_dir/
-    trueSNVEvoEvents: evolutionary_events_summary
+    trueSNVEvoEventsPre: evolutionary_events_summary
     trueSNVCovPre: true_snv_coverage
     trueSNVGenotypesALPre: true_snv_genotypes_alphabetic
     trueSNVGenotypesNUPre: true_snv_genotypes_numeric
@@ -227,6 +263,23 @@ benchmark:
     # BAM file names for Monovar and SCIPhI.
     bamFileNamesWithNormal: bam_file_names_with_normal
     bamFileNamesWithoutNormal: bam_file_names_without_normal
+
+    # Results of adding CNVs to simulated data; under 'dataDir'.
+    dataTypes:
+      dir: data_type/
+      CNVTypes:
+        noCNV:
+          dir: no_cnv/
+          requireCNV: false
+          includeCNV: null
+        incCNV:
+          dir: inc_cnv/
+          requireCNV: true
+          includeCNV: true
+        excCNV:
+          dir: exc_cnv/
+          requireCNV: true
+          includeCNV: false
     
     # Input for Monovar; under 'dataDir'.
     monovarDir: monovar_dir/
@@ -247,6 +300,20 @@ benchmark:
   paramTypes:
     fromTrueParamsDir: from_true_params/
     fromTrueParamsZeroDir: from_true_params_zero/
+  
+  # For results of CellPhy and SIEVE; the fine tune types used (e.g., single- or multi-thread). All types appeared in the fine tune section of the tools must be listed here.
+  # TO BE SET [OPTIONAL]
+  fineTuneTypes:
+    st: st
+    mt: mt
+  
+  # For applying tools to different types of simulated data (CNVs added or not).
+  # Comment out the types not explored, but do not change the values.
+  # TO BE SET [OPTIONAL]
+  simulatedDataTypes:
+    - noCNV
+    #- incCNV
+    #- excCNV
 
   # For SIEVE results.
   sieve:
@@ -304,7 +371,6 @@ benchmark:
     trueMonovarSNVs: true_monovar_snvs
 
     # Tool setup.
-    notApplicable: NA
     trueParameters: true_parameters
     cellphyEPMode: EP
 
@@ -326,7 +392,7 @@ benchmark:
     adoRate: 0.16334
     correctedSeqErrorRate: 0.00001
     correctedAdoRate: 0.00001
-    mutationRate: 0.000001
+    mutationRate: 0.00003
     deletionRate: 0.0
     insertionRate: 0.0
     wildOverdis: 100.0
@@ -342,14 +408,18 @@ benchmark:
     # For estimated sizefactors.
     # estimatedSizeFactorsDir: size_factors_results/
 
+    # For the number of sites as input.
+    sitesInfoDir: sites_info/
+
     # For allelic information per cell.
     # allelic sequencing coverage * size factor
     # allelic sequencing coverage raw variance * size factor * size factor
     allelicInfoPerCellDir: allelic_info_per_cell_dir/
 
   # For efficiency benchmark
-  #efficiency:
-    #dir: efficiency/
+  efficiency:
+    dir: efficiency/
 
     # Number of repetitions for each dataset.
-    #repetition: 2
+    # TO BE SET [OPTIONAL]
+    repetition: 1

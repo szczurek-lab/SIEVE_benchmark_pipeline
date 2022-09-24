@@ -1,13 +1,13 @@
 import argparse
 import os
 import time
-from typing import Tuple, Union, Dict, List
+from typing import Union
 
 import yaml
 import paramiko
 from paramiko.agent import AgentRequestHandler
 
-upload_files: Dict = {
+upload_files: dict[str, str] = {
     "constants": "scripts/constants.py",
     "utils": "scripts/utils.py"
 }
@@ -18,21 +18,64 @@ WAITING_TIME_2: int = 60
 
 def parse_system_args() -> argparse.Namespace:
     sys_args_parser = argparse.ArgumentParser(description='Execute snakemake rules on a remote server with git.')
-    sys_args_parser.add_argument('--config', help='relative path to configuration file', type=str, required=True)
-    sys_args_parser.add_argument('--bash', help='relative path to bash script to run on the remote server',
-                                 metavar='BASH SCRIPT', type=str, required=True)
-    sys_args_parser.add_argument('--upload', help='relative path to files to be uploaded',
-                                 metavar='UPLOADED FILES', type=str, nargs='+', required=True)
-    sys_args_parser.add_argument('--dataset', help='simulated dataset names',
-                                 metavar='DATASET NAMES', type=str, nargs='+', required=True)
-    sys_args_parser.add_argument('--snkmkdir', help='the folder where snakemake rules will be executed, relative to '
-                                                    'the root path of the remote server',
-                                 metavar='PATH TO SNAKEMAKE', type=str, required=True)
-    sys_args_parser.add_argument('--gitdir', help='the folder where git repository is cloned, relative to the root '
-                                                  'path of the remote server',
-                                 metavar='GIT REPO CLONED', type=str, required=True)
-    sys_args_parser.add_argument('--repopath', help='the absolute path to the git repo',
-                                 metavar='GIT REPO', type=str, required=True)
+    sys_args_parser.add_argument(
+        '--config',
+        type=str,
+        required=True,
+        help='relative path to configuration file'
+    )
+    sys_args_parser.add_argument(
+        '--bash',
+        metavar='BASH SCRIPT',
+        type=str,
+        required=True,
+        help='relative path to bash script to run on the remote server'
+    )
+    sys_args_parser.add_argument(
+        '--upload',
+        metavar='UPLOADED FILES',
+        type=str,
+        nargs='+',
+        required=True,
+        help='relative path to files to be uploaded'
+    )
+    sys_args_parser.add_argument(
+        '--dataset',
+        metavar='DATASET NAMES',
+        type=str,
+        nargs='+',
+        required=True,
+        help='simulated dataset names'
+    )
+    sys_args_parser.add_argument(
+        '--datatype',
+        metavar='DATA TYPE NAMES',
+        type=str,
+        nargs='+',
+        required=True,
+        help='simulated data type names'
+    )
+    sys_args_parser.add_argument(
+        '--snkmkdir',
+        metavar='PATH TO SNAKEMAKE',
+        type=str,
+        required=True,
+        help='the folder where snakemake rules will be executed, relative to the root path of the remote server'
+    )
+    sys_args_parser.add_argument(
+        '--gitdir',
+        metavar='GIT REPO CLONED',
+        type=str,
+        required=True,
+        help='the folder where git repository is cloned, relative to the root path of the remote server'
+    )
+    sys_args_parser.add_argument(
+        '--repopath',
+        metavar='GIT REPO',
+        type=str,
+        required=True,
+        help='the absolute path to the git repo'
+    )
     sys_args = sys_args_parser.parse_args()
 
     if not os.path.isfile(sys_args.config):
@@ -46,18 +89,19 @@ def parse_system_args() -> argparse.Namespace:
     return sys_args
 
 
-def load_yaml(file_path: str) -> Dict:
+def load_yaml(file_path: str) -> dict:
     with open(file_path, 'r') as fh:
-        ssh_config: Dict = yaml.load(fh, Loader=yaml.FullLoader)
+        ssh_config: dict = yaml.load(fh, Loader=yaml.FullLoader)
     return ssh_config
 
 
-def add_datasets_2_config(ssh_config: Dict, datasets: List[str]):
+def add_data_2_config(ssh_config: dict, datasets: list[str], datatypes: list[str]):
     ssh_config['benchmark']['simulation']['datasetNames'] = datasets
+    ssh_config['benchmark']['simulation']['dataTypeNames'] = datatypes
 
 
-def create_ssh_connection(ssh_config: Dict) -> \
-        Tuple[Union[None, paramiko.SSHClient], paramiko.SSHClient]:
+def create_ssh_connection(ssh_config: dict) -> \
+        tuple[Union[None, paramiko.SSHClient], paramiko.SSHClient]:
     jump_server_of_remote = None
 
     remote_server: paramiko.SSHClient = paramiko.SSHClient()
@@ -103,7 +147,7 @@ def create_ssh_connection(ssh_config: Dict) -> \
     return jump_server_of_remote, remote_server
 
 
-def get_full_git_repo(ssh_config: Dict, repo_path: str) -> str:
+def get_full_git_repo(ssh_config: dict, repo_path: str) -> str:
     full_path: str = 'ssh://' + ssh_config['servers']['localServer']['user'] + '@' + \
                      ssh_config['servers']['localServer']['host'] + \
                      ':' + str(ssh_config['servers']['localServer']['port'])
@@ -112,14 +156,14 @@ def get_full_git_repo(ssh_config: Dict, repo_path: str) -> str:
 
 
 def clone_git_repo(
-        ssh_config: Dict,
+        ssh_config: dict,
         ssh_server: paramiko.SSHClient,
         sftp_server: paramiko.SFTPClient,
         remote_git_dir: str,
         local_git_repo: str
 ) -> None:
     # get repo name
-    comp: List[str] = local_git_repo.strip().split('/')
+    comp: list[str] = local_git_repo.strip().split('/')
     repo_name: str = comp[-1] if comp[-1].strip() != '' else comp[-2]
 
     # use an interactive shell to emulate a login session
@@ -175,7 +219,7 @@ def create_sftp(server: paramiko.SSHClient) -> paramiko.SFTPClient:
     return server.open_sftp()
 
 
-def dump_config_on_remote_server(sftp: paramiko.SFTPClient, file_name: str, ssh_config: Dict) -> None:
+def dump_config_on_remote_server(sftp: paramiko.SFTPClient, file_name: str, ssh_config: dict) -> None:
     try:
         print(sftp.stat(file_name))
         print(file_name + ' exists on remote server. Skip creation.')
@@ -203,7 +247,7 @@ def upload_files_2_remote_server(
         remote_server: paramiko.SSHClient,
         root_path_on_server: str,
         config_file_name: str,
-        ssh_config: Dict
+        ssh_config: dict
 ) -> None:
     remote_server_sftp: paramiko.SFTPClient = create_sftp(remote_server)
     remote_server.exec_command("mkdir -p " + os.path.dirname(root_path_on_server))
@@ -216,7 +260,7 @@ def upload_files_2_remote_server(
                 val,
                 os.path.join(root_path_on_server, val)
             )
-        elif isinstance(val, List):
+        elif isinstance(val, list):
             for item in val:
                 upload_file_2_remote_server(
                     remote_server,
@@ -250,12 +294,12 @@ def execute_bash_script(
 
 def push_commits(
         remote_server: paramiko.SSHClient,
-        ssh_config: Dict,
+        ssh_config: dict,
         remote_git_dir: str,
         local_git_repo: str
 ) -> None:
     # get repo name
-    comp: List[str] = local_git_repo.strip().split('/')
+    comp: list[str] = local_git_repo.strip().split('/')
     repo_name: str = comp[-1] if comp[-1].strip() != '' else comp[-2]
 
     channel = remote_server.get_transport().open_channel(kind='session')
@@ -288,7 +332,7 @@ def main() -> None:
 
     # load and update configuration
     ssh_config = load_yaml(sys_args.config)
-    add_datasets_2_config(ssh_config, sys_args.dataset)
+    add_data_2_config(ssh_config, sys_args.dataset, sys_args.datatype)
 
     # establish connection
     jump_server_of_remote, remote_server = create_ssh_connection(ssh_config)

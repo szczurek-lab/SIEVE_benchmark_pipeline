@@ -8,44 +8,14 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from scripts.utils import NON_WORDS_PATTERN, which_patterns, vec_pattern, get_matched_files
 
 
-def parse_params(params_file: str) -> tuple[float, float, float]:
-    if os.path.isfile(params_file):
-        eff_seq_err_rate = ado = gamma = np.nan
-        with open(params_file, 'r') as fh:
+def get_number_of_sites(file: str) -> int:
+    sites_num: int = 0
+    if os.path.isfile(file):
+        with open(file, 'r') as fh:
             for line in fh:
-                if 'ERR_P17' in line:
-                    index = line.index('ERR_P17')
-                    start_index = end_index = index
-                    for i in range(index, len(line)):
-                        if line[i] == '{':
-                            start_index = i + 1
-                        elif line[i] == '}':
-                            end_index = i
-                            break
-                    if start_index >= end_index:
-                        raise ValueError(
-                            'Error! Invalid format of error parameters in this file: ' + params_file)
-                    else:
-                        params = line[start_index:end_index].strip().split('/')
-                        eff_seq_err_rate = float(params[0].strip())
-                        ado = float(params[1].strip())
-
-                if 'G4m' in line:
-                    index = line.index('G4m')
-                    start_index = end_index = index
-                    for i in range(index, len(line)):
-                        if line[i] == '{':
-                            start_index = i + 1
-                        elif line[i] == '}':
-                            end_index = i
-                            break
-                    if start_index >= end_index:
-                        raise ValueError(
-                            'Error! Invalid format of error parameters in this file: ' + params_file)
-                    else:
-                        gamma = float(line[start_index:end_index].strip())
-
-                return eff_seq_err_rate, ado, gamma
+                if line.strip():
+                    sites_num += 1
+    return(sites_num)
 
 
 search_for_tool_setup_flag = False
@@ -78,9 +48,8 @@ else:
 
 tool_setup = []
 dataset = []
-eff_seq_err_rates = []
-ado_rates = []
-gamma_shape = []
+input_file_names = []
+num_mu_sites = []
 
 for __tool_setup in tool_setups:
     for dataset_name in sorted(snakemake.params['datasetNames']):
@@ -91,27 +60,25 @@ for __tool_setup in tool_setups:
         else:
             __pat = vec_pattern(dataset_name, NON_WORDS_PATTERN)
 
-        inferred_idx, __inferred_params = get_matched_files(
+        __idx, __files = get_matched_files(
             snakemake.input,
             __pat
         )
-        cnt = np.sum(inferred_idx)
+        cnt = np.sum(__idx)
 
         if cnt == 0:
             print(f"Warning: no matches found for {__pat} in {snakemake.input}.")
 
         tool_setup.extend(np.repeat(__tool_setup, cnt))
         dataset.extend(np.repeat(dataset_name, cnt))
+        input_file_names.extend(__files)
 
-        for __params in __inferred_params:
-            eff_seq_err_rate, ado, gamma = parse_params(__params)
-            eff_seq_err_rates.append(eff_seq_err_rate)
-            ado_rates.append(ado)
-            gamma_shape.append(gamma)
+        for file in __files:
+            num_mu_sites.append(get_number_of_sites(file))
 
         if fine_tune_type_flag:
             fine_tune_type_idx = which_patterns(
-                __inferred_params,
+                __files,
                 vec_pattern(
                     snakemake.params['fineTuneType'],
                     NON_WORDS_PATTERN
@@ -121,7 +88,7 @@ for __tool_setup in tool_setups:
         
         if data_type_flag:
             data_type_idx = which_patterns(
-                __inferred_params,
+                __files,
                 vec_pattern(
                     snakemake.params['dataType'],
                     NON_WORDS_PATTERN
@@ -130,21 +97,23 @@ for __tool_setup in tool_setups:
             data_types.extend([snakemake.params['dataType'][j] for i in data_type_idx for j in i if j >= 0])
 
 
-params_collection = pd.DataFrame(
+sites_info_collection = pd.DataFrame(
     {
         'cell_num': snakemake.params['cellNum'],
         'coverage_mean': snakemake.params["covMean"],
         'coverage_variance': snakemake.params["covVariance"],
+        'eff_seq_err_rate': snakemake.params['effSeqErrRate'],
+        'ado_rate': snakemake.params['adoRate'],
+        'deletion_rate': snakemake.params['deletionRate'],
+        'insertion_rate': snakemake.params['insertionRate'],
         'dataset': pd.Series(dataset),
         'tool': snakemake.params['tool'],
         'snv_type': snakemake.params['snvType'],
-        'tool_setup': snakemake.params['toolSetup'],
+        'tool_setup': pd.Series(tool_setup),
         'fine_tune_type': pd.Series(fine_tune_types),
         'data_type': pd.Series(data_types),
-        'eff_seq_err_rate': pd.Series(eff_seq_err_rates),
-        'ado_rate': pd.Series(ado_rates),
-        'gamma_shape': pd.Series(gamma_shape)
+        'num_variant_sites': pd.Series(num_mu_sites)
     }
 )
 
-params_collection.to_csv(snakemake.output[0], sep='\t', na_rep='NA', index=False)
+sites_info_collection.to_csv(snakemake.output[0], sep='\t', na_rep='NA', index=False)
