@@ -1,0 +1,108 @@
+"""
+Run all tools locally.
+
+Explanation of wildcards:
+
+dataType: input data types, e.g., no CNVs, including CNVs, excluding CNVs, etc.
+datasetName: simulated dataset names, e.g., 0001, 0002, 0003...
+fineTuneTypeSieve: types of fine-tuning to perform for SIEVE defined in the configuration file, e.g., single thread, multi thread, etc.
+fineTuneTypeCellPhy: types of fine-tuning to perform for CellPhy defined in the configuration file, e.g., single thread, multi thread, etc.
+runTemplateStage1: configuration templates for SIEVE which will be the
+first stage of the two-stage strategy.
+runTemplateStage2: configuration templates for SIEVE which will be the
+second stage of the two-stage strategy.
+"""
+
+
+configfile: "config.yaml"
+include: "scripts/constants.py"
+include: "scripts/utils.py"
+
+
+#########################################################
+#                Generate simulated data                #
+#########################################################
+
+generate_simulated_data(
+    SIMUDATAROOT, 
+    config["tools"]["SIEVE_simulator"], 
+    config["configFiles"]["SIEVE_simulator"],
+    SIMUDATAROOT + "simulation.log",
+    config["benchmark"]["simulation"]["dataDir"],
+    config["fineTune"]["SIEVE_simulator"]["overwrite"],
+    SIMUMONOVARDIR + config["benchmark"]["simulation"]["bamFileNamesWithNormal"],
+    SIMUMONOVARDIR + config["benchmark"]["simulation"]["bamFileNamesWithoutNormal"],
+    SIMUSCIPHIDIR + config["benchmark"]["simulation"]["bamFileNamesWithNormal"],
+    SIMUSCIPHIDIR + config["benchmark"]["simulation"]["bamFileNamesWithoutNormal"]
+)
+
+
+########################################################
+#          Include predefined snakemake files          #
+########################################################
+    
+include: "simulated_data.snake"
+include: "monovar.snake"
+include: "sciphi.snake"
+include: "cellphy.snake"
+include: "sieve_2stage.snake"
+include: "sifit_local.snake"
+
+
+#########################################################
+#              Get categories of wildcards              #
+#########################################################
+
+SIMUDATASETNAMES = get_dataset_names(SIMUSNVSITESDIR)
+FINETUNETYPESSIEVE = get_fine_tune_types(
+    config["fineTune"]["beast"],
+    config["benchmark"]["fineTuneTypes"]
+)
+FINETUNETYPESCELLPHY = get_fine_tune_types(
+    config["fineTune"]["cellphy"],
+    config["benchmark"]["fineTuneTypes"]
+)
+SIMUDATATYPES = get_data_types(
+    config["benchmark"]["simulatedDataTypes"],
+    config["benchmark"]["simulation"]["dataTypes"]["CNVTypes"]
+)
+
+
+#########################################################
+#        Get paramemter estimates type for SIEVE        #
+#########################################################
+
+PARAMSESTIMATETYPE = get_parameter_estimate_type(config["fineTune"]["variantCaller"]["estimates"])
+
+
+########################################################
+#        Get the working directory of SNAKEMAKE        #
+########################################################
+
+SNAKEMAKEDIR = get_abs_working_dir()
+
+
+#########################################################
+#                       All rules                       #
+#########################################################
+
+rule all:
+    input:
+        expand(MONOVARTRUEPARAMSDIR + "{dataType}/{datasetName}/monovar.vcf", dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES),
+
+        expand(SCIPHIDIR + "{dataType}/{datasetName}/" + config["benchmark"]["simulation"]["sciphiFilePre"] + ".vcf", dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES),
+        expand(SCIPHIDIR + "{dataType}/{datasetName}/" + config["benchmark"]["simulation"]["sciphiFilePre"] + ".params.txt", dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES),
+        expand(SCIPHIDIR + "{dataType}/{datasetName}/" + config["benchmark"]["simulation"]["sciphiFilePre"] + ".probs", dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES),
+        expand(SCIPHIDIR + "{dataType}/{datasetName}/" + config["benchmark"]["simulation"]["sciphiFilePre"] + "/best_index/tree.gv", dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES),
+        
+        expand(SIEVEFROMCANDIDATEVARCALSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/sieve.estimates", fineTuneTypeSieve=FINETUNETYPESSIEVE, dataType=SIMUDATATYPES, runTemplateStage1=config["configFiles"]["sieve"]["stage1FileNames"], runTemplateStage2=config["configFiles"]["sieve"]["stage2FileNames"], datasetName=SIMUDATASETNAMES),
+        expand(SIEVEFROMCANDIDATEVARCALSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/stage2_files", fineTuneTypeSieve=FINETUNETYPESSIEVE, dataType=SIMUDATATYPES, runTemplateStage1=config["configFiles"]["sieve"]["stage1FileNames"], runTemplateStage2=config["configFiles"]["sieve"]["stage2FileNames"], datasetName=SIMUDATASETNAMES),
+
+        expand(CELLPHYTRUEMONOVARSNVSDIR + "{fineTuneTypeCellPhy}/{dataType}/{datasetName}/vcf_ep/{datasetName}.raxml.bestTree", fineTuneTypeCellPhy=FINETUNETYPESCELLPHY, dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES),
+        expand(CELLPHYTRUEMONOVARSNVSDIR + "{fineTuneTypeCellPhy}/{dataType}/{datasetName}/vcf_ep/{datasetName}.raxml.bestModel", fineTuneTypeCellPhy=FINETUNETYPESCELLPHY, dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES),
+
+        expand(SIFITTRUEMONOVARSNVSTRUEPARAMSLOCALDIR + "{dataType}/{datasetName}/filtered.sifit_cell_names", dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES),
+        expand(SIFITTRUEMONOVARSNVSTRUEPARAMSLOCALDIR + "{dataType}/{datasetName}/filtered.sifit_data", dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES),
+        expand(SIFITTRUEMONOVARSNVSTRUEPARAMSLOCALDIR + "{dataType}/{datasetName}/true_out", dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES),
+        expand(SIFITTRUEMONOVARSNVSTRUEPARAMSLOCALDIR + "{dataType}/{datasetName}/filtered.sifit_data_mlTree.newick", dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES)
+
