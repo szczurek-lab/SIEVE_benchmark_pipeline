@@ -54,7 +54,7 @@ if [[ ${USETASKSET} -eq 1 ]]; then
 elif [[ ${USETASKSET} -eq 0 ]]; then
   nohup snakemake -s "${SNAKEFILE}" --use-conda --resources mem_mb="${MEMORY}" --rerun-trigger mtime --cores "${CORENUM}" "${ATTACHMENTS}" &>"${LOGFILE}" &
 else
-  echo "> Set USETASKSET 1 or 0 in order to use taskset or not!"
+  echo "> Set USETASKSET to 1 or 0 in order to use taskset or not!"
 fi
 
 # the end of analysis
