@@ -30,16 +30,16 @@ SIMUDATATYPES = get_data_types(
     config["benchmark"]["simulation"]["dataTypes"]["CNVTypes"]
 )
 TEMPLATES = config["configFiles"]["sieve"]["fileNames"]
-STAGE_1_TEMPLATES = config["configFiles"]["sieve"]["stage1FileNames"]
-STAGE_2_TEMPLATES = config["configFiles"]["sieve"]["stage2FileNames"]
+STAGE1TEMPLATES = config["configFiles"]["sieve"]["stage1FileNames"]
+STAGE2TEMPLATES = config["configFiles"]["sieve"]["stage2FileNames"]
 
 wildcard_constraints:
     fineTuneTypeSieve='|'.join([re.escape(i) for i in FINETUNETYPESSIEVE]) if FINETUNETYPESSIEVE is not None and len(FINETUNETYPESSIEVE) > 0 else NONE_PATTERN,
     dataType='|'.join([re.escape(i) for i in SIMUDATATYPES]) if SIMUDATATYPES is not None and len(SIMUDATATYPES) > 0 else NONE_PATTERN,
     datasetName='|'.join([re.escape(i) for i in SIMUDATASETNAMES]) if SIMUDATASETNAMES is not None and len(SIMUDATASETNAMES) > 0 else NONE_PATTERN,
     runTemplate='|'.join([re.escape(i) for i in TEMPLATES]) if TEMPLATES is not None and len(TEMPLATES) > 0 else NONE_PATTERN,
-    runTemplateStage1='|'.join([re.escape(i) for i in STAGE_1_TEMPLATES]) if STAGE_1_TEMPLATES is not None and len(STAGE_1_TEMPLATES) > 0 else NONE_PATTERN,
-    runTemplateStage2='|'.join([re.escape(i) for i in STAGE_2_TEMPLATES]) if STAGE_2_TEMPLATES is not None and len(STAGE_2_TEMPLATES) > 0 else NONE_PATTERN
+    runTemplateStage1='|'.join([re.escape(i) for i in STAGE1TEMPLATES]) if STAGE1TEMPLATES is not None and len(STAGE1TEMPLATES) > 0 else NONE_PATTERN,
+    runTemplateStage2='|'.join([re.escape(i) for i in STAGE2TEMPLATES]) if STAGE2TEMPLATES is not None and len(STAGE2TEMPLATES) > 0 else NONE_PATTERN
         
 
 #######################################################
@@ -329,7 +329,7 @@ rule gatherSieveTreesWithCandidateSNVs:
 # Rule: gather inferred trees from SIEVE stage 2 with candidate SNVs
 rule gatherSieveStage2TreesWithCandidateSNVs:
     input:
-        inferredTrees=expand(SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/sieve_simple.tree", fineTuneTypeSieve=FINETUNETYPESSIEVE, dataType=SIMUDATATYPES, runTemplateStage1=STAGE_1_TEMPLATES, runTemplateStage2=STAGE_2_TEMPLATES, datasetName=SIMUDATASETNAMES),
+        inferredTrees=expand(SIEVEFROMCANDIDATEPHYINFSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/sieve_simple.tree", fineTuneTypeSieve=FINETUNETYPESSIEVE, dataType=SIMUDATATYPES, runTemplateStage1=STAGE1TEMPLATES, runTemplateStage2=STAGE2TEMPLATES, datasetName=SIMUDATASETNAMES),
         trueTrees=expand(SIMUCONVERTEDTRUETREEDIR + config["benchmark"]["simulation"]["treesWithTrunkWithoutNormalDir"] + config["benchmark"]["simulation"]["treesPre"] + ".{datasetName}", datasetName=SIMUDATASETNAMES)
     output:
         protected(ANALYSISTREECOMPDIR + "from_sieve_stage2_" + config["benchmark"]["analysis"]["candidateSNVs"] + ".tsv")
@@ -339,7 +339,7 @@ rule gatherSieveStage2TreesWithCandidateSNVs:
         trueTreesPre=config["benchmark"]["simulation"]["treesPre"],
         tool="sieve",
         snvType=config["benchmark"]["analysis"]["candidateSNVs"],
-        toolSetup=expand("{runTemplateStage1}-{runTemplateStage2}", runTemplateStage1=STAGE_1_TEMPLATES, runTemplateStage2=STAGE_2_TEMPLATES),
+        toolSetup=expand("{runTemplateStage1}-{runTemplateStage2}", runTemplateStage1=STAGE1TEMPLATES, runTemplateStage2=STAGE2TEMPLATES),
         fineTuneType=FINETUNETYPESSIEVE,
         dataType=SIMUDATATYPES,
         cellNum=config["benchmark"]["analysis"]["cellNum"],
@@ -380,14 +380,14 @@ rule getSieveParamsWithCandidateSNVs:
 # Rule: get parameter estimates from SIEVE stage 2 with candidate SNVs
 rule getSieveStage2ParamsWithCandidateSNVs:
     input: 
-        expand(SIEVEFROMCANDIDATEVARCALSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/sieve.estimates", fineTuneTypeSieve=FINETUNETYPESSIEVE, dataType=SIMUDATATYPES, runTemplateStage1=STAGE_1_TEMPLATES, runTemplateStage2=STAGE_2_TEMPLATES, datasetName=SIMUDATASETNAMES)
+        expand(SIEVEFROMCANDIDATEVARCALSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/sieve.estimates", fineTuneTypeSieve=FINETUNETYPESSIEVE, dataType=SIMUDATATYPES, runTemplateStage1=STAGE1TEMPLATES, runTemplateStage2=STAGE2TEMPLATES, datasetName=SIMUDATASETNAMES)
     output: 
         protected(ANALYSISPARAMSDIR + "from_sieve_stage2_" + config["benchmark"]["analysis"]["candidateSNVs"] + ".tsv")
     params:
         cellNum=config["benchmark"]["analysis"]["cellNum"],
         covMean=config["benchmark"]["analysis"]["covMean"],
         covVariance=config["benchmark"]["analysis"]["covVariance"],
-        toolSetup=expand("{runTemplateStage1}-{runTemplateStage2}", runTemplateStage1=STAGE_1_TEMPLATES, runTemplateStage2=STAGE_2_TEMPLATES),
+        toolSetup=expand("{runTemplateStage1}-{runTemplateStage2}", runTemplateStage1=STAGE1TEMPLATES, runTemplateStage2=STAGE2TEMPLATES),
         datasetNames=SIMUDATASETNAMES,
         tool="sieve",
         snvType=config["benchmark"]["analysis"]["candidateSNVs"],
@@ -434,7 +434,7 @@ rule gatherSieveVarResultsCandidateSNVs:
 # Rule: gather variant calling results from SIEVE stage 2 with candidate SNVs
 rule gatherSieveStage2VarResultsCandidateSNVs:
     input: 
-        allFiles=expand(SIEVEFROMCANDIDATEVARCALSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/stage2_files", fineTuneTypeSieve=FINETUNETYPESSIEVE, dataType=SIMUDATATYPES, runTemplateStage1=STAGE_1_TEMPLATES, runTemplateStage2=STAGE_2_TEMPLATES, datasetName=SIMUDATASETNAMES),
+        allFiles=expand(SIEVEFROMCANDIDATEVARCALSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/stage2_files", fineTuneTypeSieve=FINETUNETYPESSIEVE, dataType=SIMUDATATYPES, runTemplateStage1=STAGE1TEMPLATES, runTemplateStage2=STAGE2TEMPLATES, datasetName=SIMUDATASETNAMES),
         trueCellNames=SIMUTUMORCELLNAMES,
         trueSNVSites=expand(SIMUDATATYPESDIR + "{dataType}/{datasetName}/" + config["benchmark"]["simulation"]["trueSNVSitesNamesPre"], dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES),
         trueSNVGenotypesNU=expand(SIMUDATATYPESDIR + "{dataType}/{datasetName}/" + config["benchmark"]["simulation"]["trueSNVGenotypesNUPre"], dataType=SIMUDATATYPES, datasetName=SIMUDATASETNAMES),
@@ -447,7 +447,7 @@ rule gatherSieveStage2VarResultsCandidateSNVs:
         datasetNames=SIMUDATASETNAMES,
         tool="sieve",
         snvType=config["benchmark"]["analysis"]["candidateSNVs"],
-        toolSetup=expand("{runTemplateStage1}-{runTemplateStage2}", runTemplateStage1=STAGE_1_TEMPLATES, runTemplateStage2=STAGE_2_TEMPLATES),
+        toolSetup=expand("{runTemplateStage1}-{runTemplateStage2}", runTemplateStage1=STAGE1TEMPLATES, runTemplateStage2=STAGE2TEMPLATES),
         fineTuneType=FINETUNETYPESSIEVE,
         dataType=SIMUDATATYPES,
         cellNum=config["benchmark"]["analysis"]["cellNum"],
@@ -493,7 +493,7 @@ rule gatherSieveAdoResultsCandidateSNVs:
 # Rule: gather ADO calling results from SIEVE stage 2 with candidate SNVs
 rule gatherSieveStage2AdoResultsCandidateSNVs:
     input: 
-        allFiles=expand(SIEVEFROMCANDIDATEVARCALSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/stage2_files", fineTuneTypeSieve=FINETUNETYPESSIEVE, dataType=SIMUDATATYPES, runTemplateStage1=STAGE_1_TEMPLATES, runTemplateStage2=STAGE_2_TEMPLATES, datasetName=SIMUDATASETNAMES),
+        allFiles=expand(SIEVEFROMCANDIDATEVARCALSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/stage2_files", fineTuneTypeSieve=FINETUNETYPESSIEVE, dataType=SIMUDATATYPES, runTemplateStage1=STAGE1TEMPLATES, runTemplateStage2=STAGE2TEMPLATES, datasetName=SIMUDATASETNAMES),
         trueCellNames=SIMUTUMORCELLNAMES
     output: 
         protected(ANALYSISADOCALLDIR + "from_sieve_stage2_" + config["benchmark"]["analysis"]["candidateSNVs"] + ".tsv")
@@ -501,7 +501,7 @@ rule gatherSieveStage2AdoResultsCandidateSNVs:
         datasetNames=SIMUDATASETNAMES,
         tool="sieve",
         snvType=config["benchmark"]["analysis"]["candidateSNVs"],
-        toolSetup=expand("{runTemplateStage1}-{runTemplateStage2}", runTemplateStage1=STAGE_1_TEMPLATES, runTemplateStage2=STAGE_2_TEMPLATES),
+        toolSetup=expand("{runTemplateStage1}-{runTemplateStage2}", runTemplateStage1=STAGE1TEMPLATES, runTemplateStage2=STAGE2TEMPLATES),
         fineTuneType=FINETUNETYPESSIEVE,
         dataType=SIMUDATATYPES,
         trueAdoStatesPre=SIMUTRUEADOSTATESDIR + config["benchmark"]["simulation"]["trueAdoStatesPre"],
@@ -523,14 +523,14 @@ rule gatherSieveStage2AdoResultsCandidateSNVs:
 # Rule: gather the number of candidate variant sites as input to SIEVE
 rule gatherSieveSitesInfo:
     input:
-        expand(SIEVEFROMCANDIDATEPHYINFDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}/{datasetName}/readCounts.tsv", fineTuneTypeSieve=FINETUNETYPESSIEVE, dataType=SIMUDATATYPES, runTemplateStage1=STAGE_1_TEMPLATES, datasetName=SIMUDATASETNAMES)
+        expand(SIEVEFROMCANDIDATEPHYINFDIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}/{datasetName}/readCounts.tsv", fineTuneTypeSieve=FINETUNETYPESSIEVE, dataType=SIMUDATATYPES, runTemplateStage1=STAGE1TEMPLATES, datasetName=SIMUDATASETNAMES)
     output:
         protected(ANALYSISSITESINFODIR + "from_sieve_" + config["benchmark"]["analysis"]["candidateSNVs"] + ".tsv")
     params:
         datasetNames=SIMUDATASETNAMES,
         tool="sieve",
         snvType=config["benchmark"]["analysis"]["candidateSNVs"],
-        toolSetup=STAGE_1_TEMPLATES,
+        toolSetup=STAGE1TEMPLATES,
         fineTuneType=FINETUNETYPESSIEVE,
         dataType=SIMUDATATYPES,
         cellNum=config["benchmark"]["analysis"]["cellNum"],
@@ -578,7 +578,7 @@ rule generateAllelicInfoPerCell:
 # Rule: combine allelic information per cell from all datasets
 rule combineAllelicInfoPerCell:
     input:
-        expand(SIEVEFROMCANDIDATEVARCALSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/allelic_info.rds", fineTuneTypeSieve=FINETUNETYPESSIEVE, dataType=SIMUDATATYPES, runTemplateStage1=STAGE_1_TEMPLATES, runTemplateStage2=STAGE_2_TEMPLATES, datasetName=SIMUDATASETNAMES)
+        expand(SIEVEFROMCANDIDATEVARCALSTAGE2DIR + "{fineTuneTypeSieve}/{dataType}/{runTemplateStage1}-{runTemplateStage2}/{datasetName}/allelic_info.rds", fineTuneTypeSieve=FINETUNETYPESSIEVE, dataType=SIMUDATATYPES, runTemplateStage1=STAGE1TEMPLATES, runTemplateStage2=STAGE2TEMPLATES, datasetName=SIMUDATASETNAMES)
     output:
         protected(ANALYSISALLELICINFO + "allelic_info.rds")
     script:
