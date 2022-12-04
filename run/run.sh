@@ -50,9 +50,9 @@ if [[ ${USETASKSET} -eq 1 ]]; then
   echo "> Using ${STARTCPU} to ${ENDCPU} cpus..." >>"${LOGFILE}"
   ((CORENUM = ENDCPU - STARTCPU + 1))
 
-  taskset -c ${STARTCPU}-${ENDCPU} nohup snakemake -s "${SNAKEFILE}" --use-conda --resources mem_mb="${MEMORY}" --rerun-trigger mtime --cores "${CORENUM}" "${ATTACHMENTS}" &>"${LOGFILE}" &
+  taskset -c ${STARTCPU}-${ENDCPU} nohup snakemake -s "${SNAKEFILE}" --use-conda --resources mem_mb="${MEMORY}" --rerun-triggers mtime --cores "${CORENUM}" "${ATTACHMENTS}" &>"${LOGFILE}" &
 elif [[ ${USETASKSET} -eq 0 ]]; then
-  nohup snakemake -s "${SNAKEFILE}" --use-conda --resources mem_mb="${MEMORY}" --rerun-trigger mtime --cores "${CORENUM}" "${ATTACHMENTS}" &>"${LOGFILE}" &
+  nohup snakemake -s "${SNAKEFILE}" --use-conda --resources mem_mb="${MEMORY}" --rerun-triggers mtime --cores "${CORENUM}" "${ATTACHMENTS}" &>"${LOGFILE}" &
 else
   echo "> Set USETASKSET to 1 or 0 in order to use taskset or not!"
 fi
