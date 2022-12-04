@@ -12,10 +12,6 @@ if(!"phangorn" %in% installed.packages())
   install.packages("phangorn", repos = repository)
 library(phangorn)
 
-if(!"tools" %in% installed.packages())
-  install.packages("tools", repos = repository)
-library(tools)
-
 # function: compute tree distances
 compute.tree.distance <- function(row.data) {
   real.tree <- read.tree(file = row.data["real_tree"])

@@ -4,18 +4,36 @@ This repository harbours the benchmarking framework, built upon [Snakemake](http
 
 ## Installation
 
-### Conda environment
+### Docker (Recommended)
+
+We have configured a docker file containing everything needed to run the benchmarking pipeline. This is recommended for running on server or HPC.
+
+To acqire the docker image, pull from Docker Hub with
+
+```bash
+$ docker pull senbaikang/sieve_benchmark:0.1
+```
+
+or build from Dockerfile in the root of this repository with
+
+```bash
+$ docker build -t sieve_benchmark:0.1 .
+```
+
+### Manually (Alternative)
+
+#### Conda environment
 
 This framework contains scripts written in Python 3 and R. We have provided a conda environment file (`environment.yml`), where a list of conda channels and python packages with specific versions are specified. By default, this environment is named `snake`. To create it, please follow the commands below:
 
-```shell
+```bash
 $ git clone https://github.com/szczurek-lab/SIEVE_benchmark_pipeline.git
 $ cd SIEVE_benchmark_pipeline
 $ mamba env create -f environment.yml
 $ mamba activate snake
 ```
 
-### Required packages
+#### Required packages
 
 The following packages should additionally be installed before running the pipeline:
 
@@ -27,7 +45,6 @@ The following packages should additionally be installed before running the pipel
   - optparse
   - ape
   - phangorn
-  - tools
 
 ## Configuration
 
@@ -39,9 +56,9 @@ A few files should be configured before running.
 
    - For the key `[configFiles][SIEVE_simulator]`, a configuration file for the data simulator [SIEVE_simulator](https://github.com/szczurek-lab/SIEVE_simulator) should be specified. Those simulated scenarios used in the SIEVE paper are listed in `simulation_configs/`. For details, check the paper.
 
-2. In `run/run.sh`, users can set a few things, e.g., the name of the conda environment containing snakemake (by default, `snake`), the number of cores to use and their ranges, etc.
+2. In `run/run.sh`, users can set a few things, e.g., the name of the conda environment containing snakemake (by default, `snake`), the number of cores to use and their ranges, etc. If you plan to use docker, please skip this step.
 
-### Advanced configuration
+### Advanced configuration (Yet unsuporrted for docker)
 
 Since SiFit requires a large amount of memory even working on a small dataset, the framework supports running SiFit alone on another server (referred to as `the remote server`) with the help of git. For this to work, a few things should be noted and configured:
 
@@ -55,13 +72,29 @@ Since SiFit requires a large amount of memory even working on a small dataset, t
 
 ### Benchmarking SIEVE by default
 
-With everything set up, users can run the pipeline by default with rules defined in `Snakefile` under the root directory of this repository simply with
+#### With docker
+
+The docker image only contains executables of all the benchmarked tools. To run the pipeline, you need to mount the local directory to this repository containing the snakemake rules and supporting scripts to the docker container under `/root/data`:
+
+```bash
+$ docker run -n sieve_benchmark -v /local/path/to/SIEVE_benchmark_pipeline:/root/data senbaikang/sieve_benchmark:0.1
+```
+
+The console output of snakemake will appear in the terminal. To run the pipeline in the background, add `-d` to the command above before the image name, and access the console outputs through:
+  
+```bash
+$ docker logs sieve_benchmark
+```
+
+#### Manually
+
+With everything set up, users can run the pipeline by default with rules defined in `Snakefile` under the root of this repository simply with
 
 ```bash
 $ source run/run.sh
 ```
 
-or manually with
+or with
 
 ```bash
 $ conda activate snake
@@ -70,7 +103,17 @@ $ snakemake --use-conda --cores {NUM} -kp
 
 ### Benchmarking of the efficiency
 
-If benchmarking of the efficiency is of the concern, a list of rules defined in `efficiency_benchmark.snake` is readily available and can be run with
+#### With docker
+
+If benchmarking of the efficiency is of the concern, the snakemake file containing the corresponding rules should be used. Hence, the default commands specified in the docker image must be overwritten. To do so, run the docker container with the following command:
+
+```bash
+$ docker run -n sieve_benchmark -v /local/path/to/SIEVE_benchmark_pipeline:/root/data senbaikang/sieve_benchmark:0.1 snakemake --use-conda --cores all -s efficiency_benchmark.snake --rerun-triggers mtime -kp
+```
+
+#### Manually
+
+A list of rules defined in `efficiency_benchmark.snake` is readily available and can be run with
 
 ```shell
 $ source run/run.sh efficiency_benchmark.snake

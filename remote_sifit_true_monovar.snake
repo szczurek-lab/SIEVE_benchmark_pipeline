@@ -60,7 +60,7 @@ rule runSifitWithTrueMonovarSNVsTrueParams:
         out=protected(config["benchmark"]["paramTypes"]["fromTrueParamsDir"] + "{dataType}/{datasetName}/true_out"),
         tree=protected(config["benchmark"]["paramTypes"]["fromTrueParamsDir"] + "{dataType}/{datasetName}/data_mlTree.newick")
     params:
-        sifit=config["tools"]["sifitRemote"],
+        sifit=get_sifit_jar_abs_path(config["tools"]["sifitRemote"]),
         loops=config["fineTune"]["sifit"]["loops"],
         fp=config["benchmark"]["analysis"]["effSeqErrRate"],
         fn=config["benchmark"]["analysis"]["adoRate"],

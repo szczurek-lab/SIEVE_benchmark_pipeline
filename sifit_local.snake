@@ -36,7 +36,7 @@ rule runSifitWithTrueMonovarSNVsTrueParams:
         out=protected(SIFITTRUEMONOVARSNVSTRUEPARAMSLOCALDIR + "{dataType}/{datasetName}/true_out"),
         tree=protected(SIFITTRUEMONOVARSNVSTRUEPARAMSLOCALDIR + "{dataType}/{datasetName}/filtered.sifit_data_mlTree.newick")
     params:
-        sifit=config["tools"]["sifitLocal"],
+        sifit=get_sifit_jar_abs_path(config["tools"]["sifitLocal"]),
         loops=config["fineTune"]["sifit"]["loops"],
         fp=config["benchmark"]["analysis"]["effSeqErrRate"],
         fn=config["benchmark"]["analysis"]["adoRate"],

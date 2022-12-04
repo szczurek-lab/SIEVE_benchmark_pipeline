@@ -3,34 +3,34 @@
 
 # Set paths to the following tools.
 tools:
-  # TO BE SET [MANDATORY]
-  SIEVE_simulator: /path/to/SIEVE_simulator
-
-  # TO BE SET [MANDATORY]
-  cellphy: /path/to/cellphy
-
+  # TO BE SET [MANDATORY (not for docker)]
+  SIEVE_simulator: SIEVE_simulator
+  
+  # TO BE SET [MANDATORY (not for docker)]
+  cellphy: raxml-ng-cellphy-linux
+  
   # Only when SiFit will be run locally.
-  # TO BE SET [MANDATORY]
-  sifitLocal: /path/to/local/sifit
-
+  # TO BE SET [MANDATORY (not for docker)]
+  sifitLocal: SiFit.jar
+  
   # Only when SiFit will be run on a remote server.
   # TO BE SET [MANDATORY]
   sifitRemote: /path/to/server/sifit
-
-  # TO BE SET [MANDATORY]
-  monovar: /path/to/monovar
-
-  # TO BE SET [MANDATORY]
-  sciphi: /path/to/sciphi
-
-  # TO BE SET [MANDATORY]
-  dataFilter: /path/to/dataFilter
-
-  # TO BE SET [MANDATORY]
-  applauncher: /path/to/applauncher
-
-  # TO BE SET [MANDATORY]
-  beast: /path/to/beast
+  
+  # TO BE SET [MANDATORY (not for docker)]
+  monovar: monovar
+  
+  # TO BE SET [MANDATORY (not for docker)]
+  sciphi: sciphi
+  
+  # TO BE SET [MANDATORY (not for docker)]
+  dataFilter: datafilter
+  
+  # TO BE SET [MANDATORY (not for docker)]
+  applauncher: applauncher
+  
+  # TO BE SET [MANDATORY (not for docker)]
+  beast: beast
 
 
 # Only when SiFit will be run on a remote server.

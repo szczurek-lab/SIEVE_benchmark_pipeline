@@ -338,3 +338,17 @@ def get_thread_num_for_cellphy(dataFile: str, nrOfSitesPerThread: int) -> int:
     elif 0.5 <= rawNrOfThreads - int(rawNrOfThreads) <= 1:
         return int(rawNrOfThreads) + 1
 
+
+def get_sifit_jar_abs_path(
+    sifit_jar_name: str,
+    lib_paths: list[str] = ['/usr/lib', '/usr/local/lib']
+) -> str:
+    if os.path.isfile(os.path.abspath(sifit_jar_name)):
+        return os.path.abspath(sifit_jar_name)
+    
+    for p in lib_paths:
+        if os.path.isfile(os.path.join(p, sifit_jar_name)):
+            return os.path.join(p, sifit_jar_name)
+    
+    raise ValueError('Error! ' + sifit_jar_name + ' is not found.')
+
