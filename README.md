@@ -11,13 +11,13 @@ We have configured a docker file containing everything needed to run the benchma
 To acqire the docker image, pull from Docker Hub with
 
 ```bash
-$ docker pull senbaikang/sieve_benchmark:0.1
+$ docker pull senbaikang/sieve_benchmark:0.2
 ```
 
 or build from Dockerfile in the root of this repository with
 
 ```bash
-$ docker build -t sieve_benchmark:0.1 .
+$ docker build -t sieve_benchmark:0.2 .
 ```
 
 ### Manually (Alternative)
@@ -77,7 +77,7 @@ Since SiFit requires a large amount of memory even working on a small dataset, t
 The docker image only contains executables of all the benchmarked tools. To run the pipeline, you need to mount the local directory to this repository containing the snakemake rules and supporting scripts to the docker container under `/root/data`:
 
 ```bash
-$ docker run -n sieve_benchmark -v /local/path/to/SIEVE_benchmark_pipeline:/root/data senbaikang/sieve_benchmark:0.1
+$ docker run --name sieve_benchmark -v /local/path/to/SIEVE_benchmark_pipeline:/root/data senbaikang/sieve_benchmark:0.2
 ```
 
 The console output of snakemake will appear in the terminal. To run the pipeline in the background, add `-d` to the command above before the image name, and access the console outputs through:
@@ -108,7 +108,7 @@ $ snakemake --use-conda --cores {NUM} -kp
 If benchmarking of the efficiency is of the concern, the snakemake file containing the corresponding rules should be used. Hence, the default commands specified in the docker image must be overwritten. To do so, run the docker container with the following command:
 
 ```bash
-$ docker run -n sieve_benchmark -v /local/path/to/SIEVE_benchmark_pipeline:/root/data senbaikang/sieve_benchmark:0.1 snakemake --use-conda --cores all -s efficiency_benchmark.snake --rerun-triggers mtime -kp
+$ docker run --name sieve_benchmark -v /local/path/to/SIEVE_benchmark_pipeline:/root/data senbaikang/sieve_benchmark:0.2 snakemake --use-conda --cores all -s efficiency_benchmark.snake --rerun-triggers mtime -kp
 ```
 
 #### Manually

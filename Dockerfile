@@ -161,10 +161,6 @@ RUN git clone --depth 1 https://github.com/KChen-lab/SiFit.git && \
     mv SiFit/SiFit.jar /usr/local/lib/SiFit.jar && \
     rm -rf SiFit
 
-# Install Monovar
-RUN git clone --depth 1 https://github.com/KChen-lab/MonoVar.git && \
-    ln -s "${PWD}/MonoVar/src/monovar.py" /usr/local/bin/monovar
-
 VOLUME /root/data
 
 WORKDIR /root/data

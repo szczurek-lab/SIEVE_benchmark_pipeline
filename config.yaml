@@ -18,9 +18,6 @@ tools:
   sifitRemote: /path/to/server/sifit
   
   # TO BE SET [MANDATORY (not for docker)]
-  monovar: monovar
-  
-  # TO BE SET [MANDATORY (not for docker)]
   sciphi: sciphi
   
   # TO BE SET [MANDATORY (not for docker)]

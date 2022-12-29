@@ -35,7 +35,6 @@ rule runMonovarWithTrueParams:
     output:
         protected(MONOVARTRUEPARAMSDIR + "{dataType}/{datasetName}/monovar.vcf")
     params:
-        monovar=config["tools"]["monovar"],
         fpPrior=config["benchmark"]["analysis"]["effSeqErrRate"],
         fnPrior=config["benchmark"]["analysis"]["adoRate"],
         prefix=MONOVARTRUEPARAMSDIR + "{dataType}/{datasetName}/"
@@ -47,7 +46,7 @@ rule runMonovarWithTrueParams:
         repeat(EFFICIENCYMONOVARDIR + "{dataType}/{datasetName}.tsv", config["benchmark"]["efficiency"]["repetition"])
     shell:
         "cat {input.mpileupFile} | "
-        "{params.monovar} "
+        "monovar "
         "-p {params.fpPrior} "
         "-a {params.fnPrior} "
         "-t 0.05 "
