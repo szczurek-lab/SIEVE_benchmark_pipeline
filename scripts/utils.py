@@ -121,7 +121,6 @@ def generate_simulated_data(base_path,
                             config_file_path,
                             log_path,
                             results_path,
-                            overwrite_flag,
                             monovar_with_normal_relative_path,
                             monovar_without_normal_relative_path,
                             sciphi_with_normal_relative_path,
@@ -130,12 +129,11 @@ def generate_simulated_data(base_path,
     """Generate simulated data.
 
     Args:
-        base_path (string): Everything should be moved here. If exists, choose to overwrite or not.
+        base_path (string): Everything should be moved here.
         tool_path (string): Path to simulator.
         config_file_path (string): Path to simulation configuration file.
         log_path (string): Path to running log.
         results_path (string): Path to generated data defined in the configuration file.
-        overwrite_flag (bool): TRUE or FALSE.
         monovar_with_normal_relative_path (string): Relative to the most recent common parent folder of all simulated files.
         monovar_without_normal_relative_path (string): As above.
         sciphi_with_normal_relative_path (string): As above.
@@ -150,7 +148,7 @@ def generate_simulated_data(base_path,
         _overwrite_flag = True
     if os.path.isdir(base_path):
         shell("echo \"Existing directory detected: %s\" >&2" % base_path)
-        if _overwrite_flag | overwrite_flag:
+        if _overwrite_flag:
             shell("echo \"Overwriting...\" >&2")
             shell("rm -r %s" % base_path)
             _generate_simulated_data(

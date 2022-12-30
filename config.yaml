@@ -106,12 +106,6 @@ configFiles:
 
 # Set parameter values for tools.
 fineTune:
-  # TO BE SET [OPTIONAL]
-  SIEVE_simulator:
-    # Whether to overwrite if simulated data exist.
-    # boolean; 'true' or 'false'.
-    overwrite: false
-  
   # For adding CNVs to the simulated data.
   # TO BE SET [OPTIONAL]
   simulateCNVs:

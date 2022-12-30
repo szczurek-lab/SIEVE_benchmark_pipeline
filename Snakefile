@@ -13,7 +13,6 @@ generate_simulated_data(
     config["configFiles"]["SIEVE_simulator"],
     SIMUDATAROOT + "simulation.log",
     config["benchmark"]["simulation"]["dataDir"],
-    config["fineTune"]["SIEVE_simulator"]["overwrite"],
     SIMUMONOVARDIR + config["benchmark"]["simulation"]["bamFileNamesWithNormal"],
     SIMUMONOVARDIR + config["benchmark"]["simulation"]["bamFileNamesWithoutNormal"],
     SIMUSCIPHIDIR + config["benchmark"]["simulation"]["bamFileNamesWithNormal"],
